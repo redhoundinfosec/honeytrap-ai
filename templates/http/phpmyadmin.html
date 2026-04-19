@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>phpMyAdmin</title>
+    <style>
+        body { background: #fff; font-family: 'Trebuchet MS', Verdana, sans-serif; color: #000; margin: 0; padding: 0; }
+        .topbar { background: #E1E1E1; border-bottom: 1px solid #999; padding: 8px 20px; font-size: 13px; }
+        .wrap { max-width: 420px; margin: 40px auto; border: 1px solid #CCC; padding: 24px; background: #F5F5F5; }
+        h1 { font-size: 18px; color: #336; margin-top: 0; }
+        label { display: block; margin: 12px 0 4px; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 4px; }
+        button { margin-top: 14px; padding: 6px 16px; }
+        .footer { text-align: center; font-size: 11px; color: #555; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="topbar">phpMyAdmin 4.9.7 · Language: <select disabled><option>English</option></select></div>
+    <div class="wrap">
+        <h1>Welcome to phpMyAdmin</h1>
+        <form method="post" action="/phpmyadmin/index.php">
+            <label>Server</label>
+            <input type="text" value="localhost" name="pma_servername">
+            <label>Username</label>
+            <input type="text" name="pma_username" autocomplete="username">
+            <label>Password</label>
+            <input type="password" name="pma_password" autocomplete="current-password">
+            <button type="submit">Go</button>
+        </form>
+    </div>
+    <div class="footer">phpMyAdmin — {{ personality.company if personality else 'Database' }}</div>
+</body>
+</html>

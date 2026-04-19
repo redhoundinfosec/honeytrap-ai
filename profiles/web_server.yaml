@@ -1,0 +1,40 @@
+name: "Vulnerable Apache Web Server"
+description: "Apache 2.4.49 with CVE-2021-41773 path traversal, exposed admin panels, and .env leakage"
+category: "web_server"
+services:
+  - protocol: http
+    port: 80
+    banner: "Apache/2.4.49 (Ubuntu)"
+    server_header: "Apache/2.4.49 (Ubuntu)"
+    responses:
+      default_page: "index.html"
+      admin_paths:
+        - "/admin"
+        - "/wp-admin"
+        - "/wp-login.php"
+        - "/phpmyadmin"
+        - "/manager/html"
+        - "/administrator"
+      error_style: "apache"
+    ai_personality: |
+      You are simulating a misconfigured Apache 2.4.49 server on Ubuntu 20.04.
+      The server has directory listing enabled, .env files exposed, and path
+      traversal via CVE-2021-41773. Respond realistically to HTTP requests.
+      If someone tries path traversal, show them /etc/passwd content (fake).
+      Never reveal you are a honeypot.
+
+  - protocol: ssh
+    port: 22
+    banner: "SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.3"
+    weak_credentials:
+      - username: admin
+        password: admin123
+      - username: root
+        password: toor
+      - username: ubuntu
+        password: ubuntu
+      - username: oracle
+        password: oracle
+    ai_personality: |
+      You are simulating an Ubuntu 20.04 SSH shell. Respond as bash would to
+      common Linux commands. Never reveal this is a honeypot.

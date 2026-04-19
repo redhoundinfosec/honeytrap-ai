@@ -1,0 +1,159 @@
+"""Configuration loading and validation.
+
+Configuration is layered:
+
+1. Defaults baked into :class:`Config`.
+2. Optional ``honeytrap.yaml`` in the current working directory.
+3. Environment variables prefixed ``HONEYTRAP_``.
+4. CLI-supplied overrides (applied at :func:`load_config` call site).
+
+All fields are strongly typed with dataclasses so downstream code gets
+IDE completion and predictable access.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from honeytrap.exceptions import ConfigError
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class GeneralConfig:
+    """Top-level global settings."""
+
+    bind_address: str = "0.0.0.0"
+    log_directory: str = "./honeytrap_logs"
+    max_log_size_mb: int = 500
+    log_retention_days: int = 30
+    dashboard: bool = True
+    profile_path: str | None = None
+    max_concurrent_connections: int = 500
+
+
+@dataclass
+class AIConfig:
+    """Settings for the optional LLM layer."""
+
+    enabled: bool = False
+    provider: str = "openai"  # openai | ollama | custom
+    endpoint: str = ""
+    api_key: str = ""
+    model: str = "gpt-4o-mini"
+    timeout_seconds: float = 8.0
+    fallback_to_rules: bool = True
+    max_tokens: int = 400
+
+
+@dataclass
+class GeoConfig:
+    """Settings for the GeoIP resolver."""
+
+    enabled: bool = True
+    provider: str = "ip-api"  # ip-api | maxmind
+    maxmind_db: str = ""
+    vary_responses: bool = True
+    cache_size: int = 4096
+
+
+@dataclass
+class ReportingConfig:
+    """Settings for report generation."""
+
+    auto_report_interval: int = 3600  # 0 disables
+    html_export: bool = True
+    top_n_attackers: int = 20
+    output_directory: str = "./honeytrap_reports"
+
+
+@dataclass
+class Config:
+    """Root configuration object."""
+
+    general: GeneralConfig = field(default_factory=GeneralConfig)
+    ai: AIConfig = field(default_factory=AIConfig)
+    geo: GeoConfig = field(default_factory=GeoConfig)
+    reporting: ReportingConfig = field(default_factory=ReportingConfig)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the config as a plain dictionary."""
+        return asdict(self)
+
+
+def _apply_dict(cfg: Config, data: dict[str, Any]) -> Config:
+    """Merge a dict into ``cfg`` without failing on unknown keys."""
+    for section_name, section_data in data.items():
+        if not isinstance(section_data, dict):
+            continue
+        section = getattr(cfg, section_name, None)
+        if section is None:
+            logger.warning("Unknown config section %r — ignored", section_name)
+            continue
+        for key, value in section_data.items():
+            if hasattr(section, key):
+                setattr(section, key, value)
+            else:
+                logger.warning("Unknown config key %s.%s — ignored", section_name, key)
+    return cfg
+
+
+def _apply_env(cfg: Config) -> Config:
+    """Apply ``HONEYTRAP_*`` environment overrides."""
+    # A few well-known overrides map to typed fields.
+    if (value := os.environ.get("HONEYTRAP_AI_KEY")):
+        cfg.ai.api_key = value
+    if (value := os.environ.get("HONEYTRAP_AI_ENDPOINT")):
+        cfg.ai.endpoint = value
+    if (value := os.environ.get("HONEYTRAP_AI_MODEL")):
+        cfg.ai.model = value
+    if (value := os.environ.get("HONEYTRAP_AI_PROVIDER")):
+        cfg.ai.provider = value
+    if (value := os.environ.get("HONEYTRAP_LOG_DIR")):
+        cfg.general.log_directory = value
+    if (value := os.environ.get("HONEYTRAP_MAXMIND_DB")):
+        cfg.geo.maxmind_db = value
+    return cfg
+
+
+def load_config(path: str | Path | None = None) -> Config:
+    """Load configuration from a YAML file if present, merging env overrides.
+
+    Args:
+        path: Optional path to ``honeytrap.yaml``. Defaults to cwd lookup.
+
+    Returns:
+        A fully populated :class:`Config` instance.
+    """
+    cfg = Config()
+
+    candidate: Path | None = None
+    if path:
+        candidate = Path(path)
+    else:
+        cwd_file = Path.cwd() / "honeytrap.yaml"
+        if cwd_file.exists():
+            candidate = cwd_file
+
+    if candidate and candidate.exists():
+        try:
+            with candidate.open("r", encoding="utf-8") as fh:
+                data = yaml.safe_load(fh) or {}
+            if not isinstance(data, dict):
+                raise ConfigError(f"{candidate} must contain a YAML mapping")
+            cfg = _apply_dict(cfg, data)
+            logger.debug("Loaded config from %s", candidate)
+        except yaml.YAMLError as exc:
+            raise ConfigError(f"Invalid YAML in {candidate}: {exc}") from exc
+        except OSError as exc:
+            raise ConfigError(f"Unable to read {candidate}: {exc}") from exc
+
+    cfg = _apply_env(cfg)
+    return cfg

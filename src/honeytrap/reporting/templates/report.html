@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>HoneyTrap AI — Attack Report</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            max-width: 1100px; margin: 40px auto; padding: 0 20px; color: #1f2937; background: #f9fafb;
+        }
+        h1 { border-bottom: 3px solid #f59e0b; padding-bottom: 8px; }
+        h2 { color: #111827; margin-top: 38px; border-left: 4px solid #f59e0b; padding-left: 10px; }
+        table {
+            width: 100%; border-collapse: collapse; margin: 12px 0 24px; background: #fff;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+        th { background: #1f2937; color: #f9fafb; font-weight: 600; }
+        tr:hover td { background: #fef3c7; }
+        .summary {
+            display: flex; gap: 20px; flex-wrap: wrap; margin: 20px 0;
+        }
+        .card {
+            background: #fff; border-radius: 8px; padding: 16px 20px; flex: 1 1 180px;
+            border-left: 4px solid #f59e0b; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .card .n { font-size: 28px; font-weight: 700; color: #111827; }
+        .card .l { color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+        .muted { color: #6b7280; font-size: 12px; }
+        footer { margin-top: 60px; color: #9ca3af; font-size: 12px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>🍯 HoneyTrap AI — Attack Report</h1>
+    <p class="muted">Generated at {{ generated_at }} (UTC)</p>
+
+    <div class="summary">
+        <div class="card"><div class="n">{{ total_events }}</div><div class="l">Total events</div></div>
+        <div class="card"><div class="n">{{ unique_ips }}</div><div class="l">Unique attacker IPs</div></div>
+        <div class="card"><div class="n">{{ country_distribution|length }}</div><div class="l">Countries</div></div>
+        <div class="card"><div class="n">{{ novel_patterns|length }}</div><div class="l">Novel patterns</div></div>
+    </div>
+
+    <h2>Top Attackers</h2>
+    <table>
+        <thead><tr><th>IP</th><th>Country</th><th>Events</th><th>Protocols</th></tr></thead>
+        <tbody>
+            {% for a in top_attackers %}
+                <tr>
+                    <td>{{ a.remote_ip }}</td>
+                    <td>{{ a.country_code }} — {{ a.country_name }}</td>
+                    <td>{{ a.events }}</td>
+                    <td>{{ a.protocol_list or '' }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="4" class="muted">No data yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Geographic Distribution</h2>
+    <table>
+        <thead><tr><th>Country</th><th>Events</th><th>Unique IPs</th></tr></thead>
+        <tbody>
+            {% for c in country_distribution %}
+                <tr>
+                    <td>{{ c.country_code }} — {{ c.country_name }}</td>
+                    <td>{{ c.events }}</td>
+                    <td>{{ c.unique_ips }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Credential Analysis</h2>
+    <table>
+        <thead><tr><th>Username</th><th>Password</th><th>Attempts</th></tr></thead>
+        <tbody>
+            {% for c in top_credentials %}
+                <tr>
+                    <td>{{ c.username or '—' }}</td>
+                    <td><code>{{ c.password or '—' }}</code></td>
+                    <td>{{ c.attempts }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="3" class="muted">No credential attempts logged.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Attack Pattern Analysis — Top Paths</h2>
+    <table>
+        <thead><tr><th>Path</th><th>Hits</th></tr></thead>
+        <tbody>
+            {% for p in top_paths %}
+                <tr><td><code>{{ p.path }}</code></td><td>{{ p.hits }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Events by Protocol</h2>
+    <table>
+        <thead><tr><th>Protocol</th><th>Events</th></tr></thead>
+        <tbody>
+            {% for p in events_by_protocol %}
+                <tr><td>{{ p.protocol }}</td><td>{{ p.events }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Events by Type</h2>
+    <table>
+        <thead><tr><th>Type</th><th>Events</th></tr></thead>
+        <tbody>
+            {% for t in events_by_type %}
+                <tr><td>{{ t.event_type }}</td><td>{{ t.events }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Geo-Response Comparison</h2>
+    <p class="muted">
+        Did attackers behave differently based on the server personality they saw?
+    </p>
+    <table>
+        <thead>
+            <tr>
+                <th>Country</th><th>Events</th><th>Sessions</th><th>Unique IPs</th>
+                <th>Auth</th><th>Exploit</th><th>Events/IP</th><th>Events/Session</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in geo_rows %}
+                <tr>
+                    <td>{{ g.country_code }} — {{ g.country_name }}</td>
+                    <td>{{ g.total_events }}</td>
+                    <td>{{ g.sessions }}</td>
+                    <td>{{ g.unique_ips }}</td>
+                    <td>{{ g.auth_attempts }}</td>
+                    <td>{{ g.exploit_attempts }}</td>
+                    <td>{{ g.events_per_ip }}</td>
+                    <td>{{ g.events_per_session }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Novel / Interesting Patterns</h2>
+    <table>
+        <thead><tr><th>Kind</th><th>Value</th><th>Count</th></tr></thead>
+        <tbody>
+            {% for n in novel_patterns %}
+                <tr>
+                    <td>{{ n.kind }}</td>
+                    <td><code>{{ n.value }}</code></td>
+                    <td>{{ n.count }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="3" class="muted">No novel patterns flagged.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <footer>
+        Generated by HoneyTrap AI · <a href="https://github.com/redhoundinfosec/honeytrap-ai">github.com/redhoundinfosec/honeytrap-ai</a>
+    </footer>
+</body>
+</html>

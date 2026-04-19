@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tomcat Manager</title>
+    <style>
+        body { font-family: 'Lucida Grande', sans-serif; color: #000; padding: 40px; }
+        h1 { color: #325c80; }
+    </style>
+</head>
+<body>
+    <h1>Apache Tomcat/9.0.52 — {{ personality.company if personality else 'Server' }}</h1>
+    <p>Please authenticate to access the Manager App.</p>
+    <form method="post" action="/manager/html/upload">
+        <label>Username</label>
+        <input type="text" name="j_username">
+        <label>Password</label>
+        <input type="password" name="j_password">
+        <button type="submit">Sign in</button>
+    </form>
+</body>
+</html>

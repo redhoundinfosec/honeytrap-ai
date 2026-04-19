@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>cPanel Login</title>
+    <style>
+        body { font-family: sans-serif; background: #232b39; color: #fff; padding: 80px 0; }
+        .wrap { max-width: 340px; margin: 0 auto; background: #fff; color: #333; padding: 24px; border-radius: 6px; }
+        input { width: 100%; padding: 8px; margin: 6px 0; }
+        button { width: 100%; padding: 10px; background: #F39C12; color: #fff; border: 0; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <h2>cPanel</h2>
+        <p>{{ personality.domain if personality else 'example.com' }}</p>
+        <form method="post" action="/login/">
+            <input type="text" name="user" placeholder="Username">
+            <input type="password" name="pass" placeholder="Password">
+            <button type="submit">Log in</button>
+        </form>
+    </div>
+</body>
+</html>

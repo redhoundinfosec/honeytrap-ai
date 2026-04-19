@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# HoneyTrap AI runtime data
+honeytrap_logs/
+*.db
+*.sqlite
+*.jsonl
+*.jsonl.gz
+reports/*.html
+
+# Secrets
+honeytrap.yaml
+.env
+*.key
+*.pem
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# MaxMind DB
+GeoLite2-*.mmdb

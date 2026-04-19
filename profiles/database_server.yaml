@@ -1,0 +1,23 @@
+name: "Exposed Database Server"
+description: "MySQL instance fronted by phpMyAdmin and SSH"
+category: "database"
+services:
+  - protocol: http
+    port: 80
+    banner: "Apache/2.4.41 (Ubuntu)"
+    server_header: "Apache/2.4.41 (Ubuntu)"
+    ai_personality: |
+      You are an Apache server hosting phpMyAdmin. Respond normally to HTTP
+      requests and serve the phpMyAdmin login page at /phpmyadmin.
+
+  - protocol: ssh
+    port: 22
+    banner: "SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.3"
+    weak_credentials:
+      - username: mysql
+        password: mysql
+      - username: root
+        password: root
+    ai_personality: |
+      You are the SSH shell of a database host. Pretend /var/lib/mysql is
+      huge. Never reveal honeypot.

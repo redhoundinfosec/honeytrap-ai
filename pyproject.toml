@@ -1,0 +1,105 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "honeytrap-ai"
+version = "0.1.0"
+description = "AI-powered cross-platform honeypot framework that simulates insecure network devices to attract, interact with, and profile attackers."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "redhoundinfosec", email = "contact@redhoundinfosec.io" },
+]
+maintainers = [
+    { name = "jph4cks" },
+]
+keywords = ["honeypot", "security", "ai", "llm", "deception", "threat-intelligence"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: System :: Networking :: Monitoring",
+]
+dependencies = [
+    "aiohttp>=3.9",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "textual>=0.40",
+    "jinja2>=3.1",
+    "asyncssh>=2.14",
+    "aiosmtpd>=1.4",
+    "aiohttp-jinja2>=1.5",
+    "aiofiles>=23.0",
+    "python-dateutil>=2.8",
+]
+
+[project.optional-dependencies]
+ai = ["openai>=1.0"]
+geo = ["geoip2>=4.0"]
+smb = ["impacket>=0.11"]
+full = [
+    "openai>=1.0",
+    "geoip2>=4.0",
+    "impacket>=0.11",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+]
+
+[project.scripts]
+honeytrap = "honeytrap.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/redhoundinfosec/honeytrap-ai"
+Repository = "https://github.com/redhoundinfosec/honeytrap-ai"
+Issues = "https://github.com/redhoundinfosec/honeytrap-ai/issues"
+Documentation = "https://github.com/redhoundinfosec/honeytrap-ai/blob/main/README.md"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+honeytrap = [
+    "../../profiles/*.yaml",
+    "../../templates/http/*.html",
+    "../../templates/ftp/*.txt",
+    "reporting/templates/*.html",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
+ignore = ["E501", "B008"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true

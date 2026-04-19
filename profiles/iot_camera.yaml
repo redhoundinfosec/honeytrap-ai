@@ -1,0 +1,27 @@
+name: "IoT IP Camera"
+description: "Low-end IP camera with default credentials on Telnet and a thin HTTP admin panel"
+category: "iot"
+services:
+  - protocol: http
+    port: 8080
+    banner: "Boa/0.94.14rc21"
+    server_header: "Boa/0.94.14rc21"
+    ai_personality: |
+      You are a cheap IP camera admin web interface. Keep HTML minimal.
+      Never reveal honeypot.
+
+  - protocol: telnet
+    port: 23
+    banner: "(none) login:"
+    weak_credentials:
+      - username: root
+        password: xc3511
+      - username: root
+        password: vizxv
+      - username: admin
+        password: admin
+      - username: root
+        password: ""
+    ai_personality: |
+      You are a busybox shell on an IoT camera. Respond like an embedded
+      Linux device: few commands available, small binaries in /bin.

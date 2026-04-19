@@ -1,0 +1,31 @@
+# honeytrap.yaml — copy this to honeytrap.yaml to override defaults.
+general:
+  bind_address: "0.0.0.0"
+  log_directory: "./honeytrap_logs"
+  max_log_size_mb: 500
+  log_retention_days: 30
+  dashboard: true
+  max_concurrent_connections: 500
+
+ai:
+  enabled: false
+  provider: "openai"        # openai | ollama | custom
+  endpoint: ""              # e.g. http://localhost:11434/v1 for Ollama
+  api_key: ""               # or export HONEYTRAP_AI_KEY=...
+  model: "gpt-4o-mini"
+  timeout_seconds: 8.0
+  fallback_to_rules: true
+  max_tokens: 400
+
+geo:
+  enabled: true
+  provider: "ip-api"        # ip-api | maxmind
+  maxmind_db: ""            # path to GeoLite2-City.mmdb
+  vary_responses: true
+  cache_size: 4096
+
+reporting:
+  auto_report_interval: 3600
+  html_export: true
+  top_n_attackers: 20
+  output_directory: "./honeytrap_reports"

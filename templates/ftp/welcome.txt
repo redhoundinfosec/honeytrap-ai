@@ -1,0 +1,2 @@
+Welcome to the FTP server.
+Please log in with your corporate credentials or use anonymous.

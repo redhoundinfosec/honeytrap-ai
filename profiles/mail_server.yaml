@@ -1,0 +1,9 @@
+name: "Mail Server"
+description: "Misconfigured mail server with lax SMTP"
+category: "email"
+services:
+  - protocol: smtp
+    port: 25
+    banner: "220 mail.example.com ESMTP Postfix (Ubuntu)"
+    ai_personality: |
+      You are a Postfix SMTP server that appears to be an open relay.

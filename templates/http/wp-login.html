@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="{{ personality.locale[:2] if personality else 'en' }}">
+<head>
+    <meta charset="UTF-8">
+    <title>Log In — {{ personality.company if personality else 'WordPress' }}</title>
+    <style>
+        body { background: #f1f1f1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 80px 0; }
+        .wrap { max-width: 320px; margin: 0 auto; background: #fff; padding: 26px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.13); }
+        h1 { text-align: center; font-size: 20px; color: #3c434a; }
+        label { display: block; margin: 16px 0 6px; color: #3c434a; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 6px; font-size: 14px; border: 1px solid #8c8f94; }
+        button { width: 100%; padding: 8px; margin-top: 18px; background: #2271b1; color: #fff; border: 0; font-size: 13px; cursor: pointer; }
+        p.muted { text-align: center; color: #50575e; font-size: 12px; margin-top: 18px; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <h1>{{ personality.company if personality else 'WordPress' }}</h1>
+        <form method="post" action="/wp-login.php">
+            <label>Username</label>
+            <input type="text" name="log" autocomplete="username">
+            <label>Password</label>
+            <input type="password" name="pwd" autocomplete="current-password">
+            <button type="submit">Log In</button>
+        </form>
+        <p class="muted">Lost your password?</p>
+    </div>
+</body>
+</html>

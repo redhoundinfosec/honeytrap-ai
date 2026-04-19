@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="{{ personality.locale[:2] if personality else 'en' }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ personality.company if personality else 'Welcome' }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 780px; margin: 40px auto; color: #222; }
+        header { border-bottom: 2px solid #eee; padding-bottom: 12px; }
+        h1 { margin: 0; font-size: 28px; }
+        .muted { color: #777; }
+        nav a { margin-right: 12px; color: #226; }
+        footer { margin-top: 40px; color: #888; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>{{ personality.company if personality else 'Welcome' }}</h1>
+        <p class="muted">Corporate intranet</p>
+        <nav>
+            <a href="/about">About</a>
+            <a href="/services">Services</a>
+            <a href="/wp-login.php">Staff login</a>
+            <a href="/phpmyadmin">Admin</a>
+        </nav>
+    </header>
+    <main>
+        <h2>{{ personality.welcome_banner if personality else 'Welcome' }}</h2>
+        <p>Please sign in using your corporate credentials to access internal resources.</p>
+        <p class="muted">If you were directed here in error, contact IT support.</p>
+        <ul>
+            {% for f in (personality.sample_file_names if personality else []) %}
+                <li><a href="/files/{{ f }}">{{ f }}</a></li>
+            {% endfor %}
+        </ul>
+    </main>
+    <footer>
+        © {{ personality.company if personality else 'Example Corp' }} ·
+        Apache/2.4.49 (Ubuntu) · Server time {{ (path or '') }}
+    </footer>
+</body>
+</html>

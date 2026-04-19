@@ -1,0 +1,42 @@
+name: "Open File Share NAS"
+description: "QNAP-like NAS with anonymous FTP and unauthenticated SMB shares"
+category: "file_share"
+services:
+  - protocol: smb
+    port: 445
+    banner: "QNAP-NAS TS-453"
+    share_names: ["Public", "Backups", "Finance", "HR", "Engineering"]
+    fake_files:
+      - path: "Public/readme.txt"
+        content: "Welcome to the company file server. Please respect access controls."
+      - path: "Backups/db_dump_2026.sql.gz"
+        size_fake: "2.3GB"
+      - path: "Finance/Q1_revenue.xlsx"
+        size_fake: "4.2MB"
+      - path: "HR/salaries.xlsx"
+        size_fake: "1.1MB"
+    ai_personality: |
+      You are simulating a QNAP NAS with open SMB shares. Respond minimally
+      and plausibly to SMB probes. Never disclose the honeypot nature.
+
+  - protocol: ftp
+    port: 21
+    banner: "220 QNAP FTP Server ready"
+    allow_anonymous: true
+    weak_credentials:
+      - username: admin
+        password: admin
+      - username: ftp
+        password: ftp
+    fake_files:
+      - path: "public/readme.txt"
+        content: "Welcome! Please upload your files."
+      - path: "public/vacation_photos.zip"
+        size_fake: "44MB"
+      - path: "backups/db_dump_2026.sql.gz"
+        size_fake: "2.3GB"
+      - path: "finance/Q1_revenue.xlsx"
+        size_fake: "4.2MB"
+    ai_personality: |
+      You are a QNAP FTP server. Keep responses short, proper FTP return codes,
+      no hints of honeypot.
