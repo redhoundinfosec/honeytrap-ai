@@ -471,6 +471,65 @@ class AttackDatabase:
             cols = [c[0] for c in cur.description]
             return [dict(zip(cols, row)) for row in cur.fetchall()]
 
+    def events_by_hour(self) -> list[dict[str, Any]]:
+        """Return event counts bucketed by hour (YYYY-MM-DD HH).
+
+        Only returns buckets that have at least one event. Ordered ascending
+        by time, so callers can plot directly.
+        """
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                SELECT substr(timestamp, 1, 13) AS hour, COUNT(*) AS events
+                FROM events
+                WHERE timestamp != ''
+                GROUP BY hour
+                ORDER BY hour ASC
+                """
+            )
+            cols = [c[0] for c in cur.description]
+            return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
+
+    def hourly_heatmap_data(self) -> list[list[int]]:
+        """Return a 7x24 matrix (day-of-week x hour-of-day) of event counts.
+
+        Rows are Monday..Sunday (SQLite strftime ``%w`` returns 0 for Sunday,
+        so it is remapped). Hours are 0..23 UTC.
+        """
+        grid = [[0] * 24 for _ in range(7)]
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                SELECT
+                    CAST(strftime('%w', timestamp) AS INTEGER) AS dow,
+                    CAST(strftime('%H', timestamp) AS INTEGER) AS hod,
+                    COUNT(*) AS events
+                FROM events
+                WHERE timestamp != ''
+                GROUP BY dow, hod
+                """
+            )
+            for dow, hod, events in cur.fetchall():
+                if dow is None or hod is None:
+                    continue
+                # strftime('%w'): 0=Sunday..6=Saturday -> remap to Mon=0..Sun=6
+                day = (int(dow) - 1) % 7
+                hour = int(hod)
+                if 0 <= day < 7 and 0 <= hour < 24:
+                    grid[day][hour] = int(events)
+        return grid
+
+    def time_range(self) -> tuple[str | None, str | None]:
+        """Return (earliest_timestamp, latest_timestamp) or (None, None)."""
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT MIN(timestamp), MAX(timestamp) FROM events WHERE timestamp != ''"
+            )
+            row = cur.fetchone()
+            if not row or row[0] is None:
+                return (None, None)
+            return (row[0], row[1])
+
     def geo_behavior(self) -> list[dict[str, Any]]:
         """Summarize attacker behavior per country for geo-response comparison."""
         with self._lock:

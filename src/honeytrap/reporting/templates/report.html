@@ -2,241 +2,523 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>HoneyTrap AI — Attack Report</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoneyTrap AI — Attack Intelligence Report</title>
     <style>
+        :root {
+            --bg: #1a1a2e;
+            --panel: #16213e;
+            --panel-hi: #1b2a52;
+            --accent: #0f3460;
+            --highlight: #53d2dc;
+            --danger: #e94560;
+            --text: #e0e0e0;
+            --muted: #8a9bb4;
+            --grid: #2a2a4a;
+        }
+        * { box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            max-width: 1100px; margin: 40px auto; padding: 0 20px; color: #1f2937; background: #f9fafb;
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter',
+                         'Helvetica Neue', Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.55;
         }
-        h1 { border-bottom: 3px solid #f59e0b; padding-bottom: 8px; }
-        h2 { color: #111827; margin-top: 38px; border-left: 4px solid #f59e0b; padding-left: 10px; }
+        a { color: var(--highlight); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code {
+            font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+            background: rgba(83, 210, 220, 0.08);
+            padding: 1px 6px;
+            border-radius: 3px;
+            color: var(--highlight);
+            font-size: 12.5px;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            min-height: 100vh;
+        }
+        nav.sidebar {
+            background: var(--panel);
+            border-right: 1px solid var(--grid);
+            padding: 24px 16px;
+            position: sticky;
+            top: 0;
+            align-self: start;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        nav.sidebar h3 {
+            margin: 0 0 12px;
+            font-size: 13px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--highlight);
+        }
+        nav.sidebar ul { list-style: none; margin: 0; padding: 0; }
+        nav.sidebar li { margin: 4px 0; }
+        nav.sidebar a {
+            display: block;
+            padding: 6px 10px;
+            color: var(--text);
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        nav.sidebar a:hover { background: var(--panel-hi); text-decoration: none; }
+
+        main {
+            padding: 32px 40px 60px;
+            max-width: 1200px;
+        }
+
+        header.banner {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            border-bottom: 2px solid var(--danger);
+            padding-bottom: 16px;
+            margin-bottom: 28px;
+        }
+        header.banner h1 {
+            margin: 0;
+            font-size: 26px;
+            color: var(--text);
+            letter-spacing: 0.01em;
+        }
+        header.banner .meta {
+            color: var(--muted);
+            font-size: 12px;
+            text-align: right;
+        }
+
+        h2 {
+            color: var(--text);
+            font-size: 20px;
+            margin: 40px 0 16px;
+            padding-left: 12px;
+            border-left: 4px solid var(--highlight);
+        }
+        h3 {
+            color: var(--text);
+            font-size: 16px;
+            margin: 24px 0 10px;
+        }
+        p.lead { color: var(--muted); margin-top: 0; }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .stat {
+            background: var(--panel);
+            border-radius: 6px;
+            padding: 18px 20px;
+            border-left: 4px solid var(--highlight);
+        }
+        .stat .n {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1;
+        }
+        .stat .l {
+            color: var(--muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.09em;
+            margin-top: 6px;
+        }
+        .stat.danger { border-left-color: var(--danger); }
+        .stat.accent { border-left-color: var(--accent); }
+
+        .panel {
+            background: var(--panel);
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 24px;
+            border: 1px solid var(--grid);
+        }
+        .chart-wrap {
+            text-align: center;
+            margin: 10px 0 18px;
+        }
+        .chart-wrap img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            border: 1px solid var(--grid);
+        }
+
         table {
-            width: 100%; border-collapse: collapse; margin: 12px 0 24px; background: #fff;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--panel);
+            font-size: 13px;
+            border-radius: 4px;
+            overflow: hidden;
         }
-        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
-        th { background: #1f2937; color: #f9fafb; font-weight: 600; }
-        tr:hover td { background: #fef3c7; }
-        .summary {
-            display: flex; gap: 20px; flex-wrap: wrap; margin: 20px 0;
+        th, td {
+            padding: 9px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--grid);
         }
-        .card {
-            background: #fff; border-radius: 8px; padding: 16px 20px; flex: 1 1 180px;
-            border-left: 4px solid #f59e0b; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        th {
+            background: var(--accent);
+            color: var(--text);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.08em;
         }
-        .card .n { font-size: 28px; font-weight: 700; color: #111827; }
-        .card .l { color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
-        .muted { color: #6b7280; font-size: 12px; }
-        footer { margin-top: 60px; color: #9ca3af; font-size: 12px; text-align: center; }
+        tr:hover td { background: var(--panel-hi); }
+        td.num { text-align: right; font-variant-numeric: tabular-nums; }
+        .empty { color: var(--muted); text-align: center; font-style: italic; }
+
+        .tag {
+            display: inline-block;
+            background: var(--accent);
+            color: var(--text);
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+        .tag.danger { background: var(--danger); }
+
+        footer.foot {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid var(--grid);
+            color: var(--muted);
+            font-size: 11px;
+            text-align: center;
+        }
+
+        @media (max-width: 820px) {
+            .layout { grid-template-columns: 1fr; }
+            nav.sidebar { position: static; height: auto; }
+            main { padding: 20px; }
+        }
+
+        @media print {
+            :root { color-scheme: light; }
+            body { background: #ffffff; color: #111; }
+            .layout { display: block; }
+            nav.sidebar { display: none; }
+            main { max-width: 100%; padding: 0; }
+            .panel { background: #fafafa; border: 1px solid #ddd; }
+            table { background: #fff; }
+            th { background: #333; color: #fff; }
+            code { color: #0a5d66; background: #eef; }
+            h2 { color: #111; page-break-after: avoid; }
+            section { page-break-inside: avoid; }
+            .chart-wrap img { page-break-inside: avoid; }
+        }
     </style>
 </head>
 <body>
-    <h1>🍯 HoneyTrap AI — Attack Report</h1>
-    <p class="muted">Generated at {{ generated_at }} (UTC)</p>
+<div class="layout">
+    <nav class="sidebar">
+        <h3>Report Sections</h3>
+        <ul>
+            <li><a href="#summary">Executive Summary</a></li>
+            <li><a href="#timeline">Attack Timeline</a></li>
+            <li><a href="#geo">Geographic Analysis</a></li>
+            <li><a href="#proto">Protocol Analysis</a></li>
+            <li><a href="#attck">MITRE ATT&amp;CK</a></li>
+            <li><a href="#creds">Credential Analysis</a></li>
+            <li><a href="#patterns">Attack Patterns</a></li>
+            <li><a href="#iocs">Indicators of Compromise</a></li>
+            {% if geo_rows %}<li><a href="#georesp">Geo-Response</a></li>{% endif %}
+        </ul>
+    </nav>
+    <main>
+        <header class="banner">
+            <h1>🍯 HoneyTrap AI — Attack Intelligence Report</h1>
+            <div class="meta">
+                Generated {{ generated_at }}<br>
+                {% if time_range and time_range[0] %}
+                    Data range: {{ time_range[0] }} → {{ time_range[1] }}
+                {% else %}
+                    No events recorded yet
+                {% endif %}
+            </div>
+        </header>
 
-    <div class="summary">
-        <div class="card"><div class="n">{{ total_events }}</div><div class="l">Total events</div></div>
-        <div class="card"><div class="n">{{ unique_ips }}</div><div class="l">Unique attacker IPs</div></div>
-        <div class="card"><div class="n">{{ country_distribution|length }}</div><div class="l">Countries</div></div>
-        <div class="card"><div class="n">{{ novel_patterns|length }}</div><div class="l">Novel patterns</div></div>
-    </div>
+        <section id="summary">
+            <h2>Executive Summary</h2>
+            <div class="card-grid">
+                <div class="stat"><div class="n">{{ total_events }}</div><div class="l">Total Events</div></div>
+                <div class="stat danger"><div class="n">{{ unique_ips }}</div><div class="l">Unique Attacker IPs</div></div>
+                <div class="stat"><div class="n">{{ country_distribution|length }}</div><div class="l">Countries</div></div>
+                <div class="stat accent"><div class="n">{{ events_by_protocol|length }}</div><div class="l">Protocols</div></div>
+                <div class="stat"><div class="n">{{ top_techniques|length }}</div><div class="l">ATT&amp;CK Techniques</div></div>
+                <div class="stat danger"><div class="n">{{ novel_patterns|length }}</div><div class="l">Novel Patterns</div></div>
+            </div>
+        </section>
 
-    <h2>Top Attackers</h2>
-    <table>
-        <thead><tr><th>IP</th><th>Country</th><th>Events</th><th>Protocols</th></tr></thead>
-        <tbody>
-            {% for a in top_attackers %}
-                <tr>
-                    <td>{{ a.remote_ip }}</td>
-                    <td>{{ a.country_code }} — {{ a.country_name }}</td>
-                    <td>{{ a.events }}</td>
-                    <td>{{ a.protocol_list or '' }}</td>
-                </tr>
-            {% else %}
-                <tr><td colspan="4" class="muted">No data yet.</td></tr>
+        <section id="timeline">
+            <h2>Attack Timeline</h2>
+            <p class="lead">Event volume over time — helps surface campaigns, scans, and quiet periods.</p>
+            <div class="panel">
+                {% if charts.timeline %}
+                <div class="chart-wrap"><img src="data:image/png;base64,{{ charts.timeline }}" alt="Attack timeline"></div>
+                {% else %}
+                <p class="empty">Timeline unavailable.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section id="geo">
+            <h2>Geographic Analysis</h2>
+            <p class="lead">Where attacks are coming from, by IP geolocation.</p>
+            <div class="panel">
+                {% if charts.country %}
+                <div class="chart-wrap"><img src="data:image/png;base64,{{ charts.country }}" alt="Country distribution"></div>
+                {% endif %}
+                <table>
+                    <thead><tr><th>Country</th><th>Events</th><th>Unique IPs</th></tr></thead>
+                    <tbody>
+                        {% for c in country_distribution %}
+                            <tr>
+                                <td>{{ c.country_code }} — {{ c.country_name }}</td>
+                                <td class="num">{{ c.events }}</td>
+                                <td class="num">{{ c.unique_ips }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="3" class="empty">No geographic data yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <h3>Top Attackers</h3>
+            <div class="panel">
+                <table>
+                    <thead><tr><th>IP</th><th>Country</th><th>Events</th><th>Protocols</th></tr></thead>
+                    <tbody>
+                        {% for a in top_attackers %}
+                            <tr>
+                                <td><code>{{ a.remote_ip }}</code></td>
+                                <td>{{ a.country_code }} — {{ a.country_name }}</td>
+                                <td class="num">{{ a.events }}</td>
+                                <td>{{ a.protocol_list or '' }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="4" class="empty">No attacker data yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="proto">
+            <h2>Protocol Analysis</h2>
+            <p class="lead">Which services attackers touched, and how often.</p>
+            <div class="panel">
+                {% if charts.protocol %}
+                <div class="chart-wrap"><img src="data:image/png;base64,{{ charts.protocol }}" alt="Protocol distribution"></div>
+                {% endif %}
+                <table>
+                    <thead><tr><th>Protocol</th><th>Events</th></tr></thead>
+                    <tbody>
+                        {% for p in events_by_protocol %}
+                            <tr><td><span class="tag">{{ p.protocol|upper }}</span></td><td class="num">{{ p.events }}</td></tr>
+                        {% else %}
+                            <tr><td colspan="2" class="empty">No protocol activity.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <h3>Top Requested Paths</h3>
+            <div class="panel">
+                <table>
+                    <thead><tr><th>Path</th><th>Hits</th></tr></thead>
+                    <tbody>
+                        {% for p in top_paths %}
+                            <tr><td><code>{{ p.path }}</code></td><td class="num">{{ p.hits }}</td></tr>
+                        {% else %}
+                            <tr><td colspan="2" class="empty">No HTTP paths observed.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="attck">
+            <h2>MITRE ATT&amp;CK Coverage</h2>
+            <p class="lead">Observed attacker behavior mapped to the MITRE ATT&amp;CK Enterprise framework.</p>
+            <div class="panel">
+                {% if charts.technique %}
+                <div class="chart-wrap"><img src="data:image/png;base64,{{ charts.technique }}" alt="ATT&CK techniques"></div>
+                {% endif %}
+                <table>
+                    <thead><tr><th>ID</th><th>Name</th><th>Tactic</th><th>Events</th><th>Unique IPs</th><th>Avg Conf.</th></tr></thead>
+                    <tbody>
+                        {% for t in top_techniques %}
+                            <tr>
+                                <td><code>{{ t.technique_id }}</code></td>
+                                <td>{{ t.technique_name }}</td>
+                                <td><span class="tag">{{ t.tactic }}</span></td>
+                                <td class="num">{{ t.events }}</td>
+                                <td class="num">{{ t.unique_ips }}</td>
+                                <td class="num">{{ '%.2f' % (t.avg_confidence or 0) }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="6" class="empty">No ATT&amp;CK mappings recorded yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <h3>Tactic Distribution</h3>
+            <div class="panel">
+                {% if charts.tactic %}
+                <div class="chart-wrap"><img src="data:image/png;base64,{{ charts.tactic }}" alt="Tactic heatmap"></div>
+                {% endif %}
+                <table>
+                    <thead><tr><th>Tactic</th><th>Events</th><th>Techniques</th></tr></thead>
+                    <tbody>
+                        {% for t in tactic_distribution %}
+                            <tr><td>{{ t.tactic }}</td><td class="num">{{ t.events }}</td><td class="num">{{ t.techniques }}</td></tr>
+                        {% else %}
+                            <tr><td colspan="3" class="empty">No tactic coverage yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="creds">
+            <h2>Credential Analysis</h2>
+            <p class="lead">Most-tried username/password combinations.</p>
+            <div class="panel">
+                {% if charts.credentials %}
+                <div class="chart-wrap"><img src="data:image/png;base64,{{ charts.credentials }}" alt="Top credentials"></div>
+                {% endif %}
+                <table>
+                    <thead><tr><th>Username</th><th>Password</th><th>Attempts</th></tr></thead>
+                    <tbody>
+                        {% for c in top_credentials %}
+                            <tr>
+                                <td><code>{{ c.username or '—' }}</code></td>
+                                <td><code>{{ c.password or '—' }}</code></td>
+                                <td class="num">{{ c.attempts }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="3" class="empty">No credential attempts logged.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="patterns">
+            <h2>Attack Patterns</h2>
+            <p class="lead">When attackers are most active, and what looks unusual.</p>
+            <div class="panel">
+                {% if charts.hourly %}
+                <div class="chart-wrap"><img src="data:image/png;base64,{{ charts.hourly }}" alt="Hourly heatmap"></div>
+                {% else %}
+                <p class="empty">Not enough data for hourly analysis yet.</p>
+                {% endif %}
+            </div>
+            <h3>Novel / Interesting Patterns</h3>
+            <div class="panel">
+                <table>
+                    <thead><tr><th>Kind</th><th>Value</th><th>Count</th></tr></thead>
+                    <tbody>
+                        {% for n in novel_patterns %}
+                            <tr>
+                                <td><span class="tag danger">{{ n.kind }}</span></td>
+                                <td><code>{{ n.value }}</code></td>
+                                <td class="num">{{ n.count }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="3" class="empty">No novel patterns flagged.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="iocs">
+            <h2>Indicators of Compromise</h2>
+            <p class="lead">Extracted IOCs grouped by type, sortable by sightings.</p>
+            <div class="panel">
+                <table>
+                    <thead><tr><th>Type</th><th>Unique Values</th><th>Total Sightings</th></tr></thead>
+                    <tbody>
+                        {% for i in ioc_summary %}
+                            <tr><td><span class="tag">{{ i.type }}</span></td><td class="num">{{ i.unique_values }}</td><td class="num">{{ i.sightings }}</td></tr>
+                        {% else %}
+                            <tr><td colspan="3" class="empty">No IOCs extracted yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% for ioc_type, rows in iocs_by_type.items() %}
+                <h3>{{ ioc_type|upper }} ({{ rows|length }})</h3>
+                <div class="panel">
+                    <table>
+                        <thead><tr><th>Value</th><th>Sightings</th><th>Confidence</th><th>Last Seen</th></tr></thead>
+                        <tbody>
+                            {% for r in rows %}
+                                <tr>
+                                    <td><code>{{ r.value }}</code></td>
+                                    <td class="num">{{ r.sightings }}</td>
+                                    <td class="num">{{ '%.2f' % (r.confidence or 0) }}</td>
+                                    <td>{{ r.last_seen }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             {% endfor %}
-        </tbody>
-    </table>
+        </section>
 
-    <h2>Geographic Distribution</h2>
-    <table>
-        <thead><tr><th>Country</th><th>Events</th><th>Unique IPs</th></tr></thead>
-        <tbody>
-            {% for c in country_distribution %}
-                <tr>
-                    <td>{{ c.country_code }} — {{ c.country_name }}</td>
-                    <td>{{ c.events }}</td>
-                    <td>{{ c.unique_ips }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+        {% if geo_rows %}
+        <section id="georesp">
+            <h2>Geo-Response Comparison</h2>
+            <p class="lead">Did attackers behave differently based on the server personality they saw?</p>
+            <div class="panel">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Country</th><th>Events</th><th>Sessions</th><th>Unique IPs</th>
+                            <th>Auth</th><th>Exploit</th><th>Events/IP</th><th>Events/Session</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for g in geo_rows %}
+                            <tr>
+                                <td>{{ g.country_code }} — {{ g.country_name }}</td>
+                                <td class="num">{{ g.total_events }}</td>
+                                <td class="num">{{ g.sessions }}</td>
+                                <td class="num">{{ g.unique_ips }}</td>
+                                <td class="num">{{ g.auth_attempts }}</td>
+                                <td class="num">{{ g.exploit_attempts }}</td>
+                                <td class="num">{{ g.events_per_ip }}</td>
+                                <td class="num">{{ g.events_per_session }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% endif %}
 
-    <h2>Credential Analysis</h2>
-    <table>
-        <thead><tr><th>Username</th><th>Password</th><th>Attempts</th></tr></thead>
-        <tbody>
-            {% for c in top_credentials %}
-                <tr>
-                    <td>{{ c.username or '—' }}</td>
-                    <td><code>{{ c.password or '—' }}</code></td>
-                    <td>{{ c.attempts }}</td>
-                </tr>
-            {% else %}
-                <tr><td colspan="3" class="muted">No credential attempts logged.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <h2>Attack Pattern Analysis — Top Paths</h2>
-    <table>
-        <thead><tr><th>Path</th><th>Hits</th></tr></thead>
-        <tbody>
-            {% for p in top_paths %}
-                <tr><td><code>{{ p.path }}</code></td><td>{{ p.hits }}</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <h2>Events by Protocol</h2>
-    <table>
-        <thead><tr><th>Protocol</th><th>Events</th></tr></thead>
-        <tbody>
-            {% for p in events_by_protocol %}
-                <tr><td>{{ p.protocol }}</td><td>{{ p.events }}</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <h2>Events by Type</h2>
-    <table>
-        <thead><tr><th>Type</th><th>Events</th></tr></thead>
-        <tbody>
-            {% for t in events_by_type %}
-                <tr><td>{{ t.event_type }}</td><td>{{ t.events }}</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <h2>Geo-Response Comparison</h2>
-    <p class="muted">
-        Did attackers behave differently based on the server personality they saw?
-    </p>
-    <table>
-        <thead>
-            <tr>
-                <th>Country</th><th>Events</th><th>Sessions</th><th>Unique IPs</th>
-                <th>Auth</th><th>Exploit</th><th>Events/IP</th><th>Events/Session</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for g in geo_rows %}
-                <tr>
-                    <td>{{ g.country_code }} — {{ g.country_name }}</td>
-                    <td>{{ g.total_events }}</td>
-                    <td>{{ g.sessions }}</td>
-                    <td>{{ g.unique_ips }}</td>
-                    <td>{{ g.auth_attempts }}</td>
-                    <td>{{ g.exploit_attempts }}</td>
-                    <td>{{ g.events_per_ip }}</td>
-                    <td>{{ g.events_per_session }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <h2>MITRE ATT&amp;CK Coverage</h2>
-    <p class="muted">
-        Observed attacker behavior mapped to the MITRE ATT&amp;CK Enterprise framework.
-    </p>
-    <table>
-        <thead><tr><th>Technique ID</th><th>Name</th><th>Tactic</th><th>Events</th><th>Unique IPs</th><th>Avg Confidence</th></tr></thead>
-        <tbody>
-            {% for t in top_techniques %}
-                <tr>
-                    <td><code>{{ t.technique_id }}</code></td>
-                    <td>{{ t.technique_name }}</td>
-                    <td>{{ t.tactic }}</td>
-                    <td>{{ t.events }}</td>
-                    <td>{{ t.unique_ips }}</td>
-                    <td>{{ '%.2f' % (t.avg_confidence or 0) }}</td>
-                </tr>
-            {% else %}
-                <tr><td colspan="6" class="muted">No ATT&amp;CK mappings recorded yet.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <h3>Tactic Distribution</h3>
-    <table>
-        <thead><tr><th>Tactic</th><th>Events</th><th>Techniques</th></tr></thead>
-        <tbody>
-            {% for t in tactic_distribution %}
-                <tr><td>{{ t.tactic }}</td><td>{{ t.events }}</td><td>{{ t.techniques }}</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <h3>Technique &times; Attacker Correlation</h3>
-    <table>
-        <thead><tr><th>Technique</th><th>Name</th><th>Attacker IP</th><th>Events</th></tr></thead>
-        <tbody>
-            {% for t in technique_to_attacker %}
-                <tr>
-                    <td><code>{{ t.technique_id }}</code></td>
-                    <td>{{ t.technique_name }}</td>
-                    <td>{{ t.remote_ip }}</td>
-                    <td>{{ t.events }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <h2>Indicators of Compromise</h2>
-    <table>
-        <thead><tr><th>Type</th><th>Unique Values</th><th>Total Sightings</th></tr></thead>
-        <tbody>
-            {% for i in ioc_summary %}
-                <tr><td>{{ i.type }}</td><td>{{ i.unique_values }}</td><td>{{ i.sightings }}</td></tr>
-            {% else %}
-                <tr><td colspan="3" class="muted">No IOCs extracted yet.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <h3>Top IOCs</h3>
-    <table>
-        <thead><tr><th>Type</th><th>Value</th><th>Sightings</th><th>Confidence</th></tr></thead>
-        <tbody>
-            {% for i in top_iocs %}
-                <tr>
-                    <td>{{ i.type }}</td>
-                    <td><code>{{ i.value }}</code></td>
-                    <td>{{ i.sightings }}</td>
-                    <td>{{ '%.2f' % (i.confidence or 0) }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <h2>Novel / Interesting Patterns</h2>
-    <table>
-        <thead><tr><th>Kind</th><th>Value</th><th>Count</th></tr></thead>
-        <tbody>
-            {% for n in novel_patterns %}
-                <tr>
-                    <td>{{ n.kind }}</td>
-                    <td><code>{{ n.value }}</code></td>
-                    <td>{{ n.count }}</td>
-                </tr>
-            {% else %}
-                <tr><td colspan="3" class="muted">No novel patterns flagged.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <footer>
-        Generated by HoneyTrap AI · <a href="https://github.com/redhoundinfosec/honeytrap-ai">github.com/redhoundinfosec/honeytrap-ai</a>
-    </footer>
+        <footer class="foot">
+            Generated by HoneyTrap AI v{{ version }} · {{ generated_at }} ·
+            <a href="https://github.com/redhoundinfosec/honeytrap-ai">github.com/redhoundinfosec/honeytrap-ai</a>
+        </footer>
+    </main>
+</div>
 </body>
 </html>

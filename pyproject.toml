@@ -42,16 +42,19 @@ dependencies = [
     "aiohttp-jinja2>=1.5",
     "aiofiles>=23.0",
     "python-dateutil>=2.8",
+    "matplotlib>=3.7",
 ]
 
 [project.optional-dependencies]
 ai = ["openai>=1.0"]
 geo = ["geoip2>=4.0"]
 smb = ["impacket>=0.11"]
+pdf = ["weasyprint>=60"]
 full = [
     "openai>=1.0",
     "geoip2>=4.0",
     "impacket>=0.11",
+    "weasyprint>=60",
 ]
 dev = [
     "pytest>=7.0",

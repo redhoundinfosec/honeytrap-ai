@@ -21,12 +21,18 @@ from rich.table import Table
 
 from honeytrap.core.config import Config
 from honeytrap.logging.database import AttackDatabase
+from honeytrap.reporting import charts as charts_mod
 from honeytrap.reporting.analyzer import AnalysisSnapshot, Analyzer
 from honeytrap.reporting.geo_comparison import GeoComparator
 
 logger = logging.getLogger(__name__)
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+
+try:
+    from honeytrap import __version__ as _HONEYTRAP_VERSION  # noqa: N812
+except Exception:  # noqa: BLE001
+    _HONEYTRAP_VERSION = "0.1.0"
 
 
 class ReportGenerator:
@@ -207,12 +213,37 @@ class ReportGenerator:
     # ------------------------------------------------------------------
     # HTML
     # ------------------------------------------------------------------
-    def render_html(self, output_path: Path | str) -> Path:
-        """Write a standalone HTML report. Returns the output path."""
+    def _build_charts(self, snap: AnalysisSnapshot) -> dict[str, str]:
+        """Render every chart from a snapshot, returning base64 PNG strings.
+
+        Any chart that raises is logged and swapped for an empty string so the
+        rest of the report renders regardless.
+        """
+        specs = [
+            ("timeline", charts_mod.attack_timeline_chart, (snap.events_by_hour,)),
+            ("protocol", charts_mod.protocol_distribution_chart, (snap.events_by_protocol,)),
+            ("country", charts_mod.country_distribution_chart, (snap.country_distribution,)),
+            ("technique", charts_mod.attack_technique_chart, (snap.top_techniques,)),
+            ("tactic", charts_mod.tactic_heatmap, (snap.tactic_distribution,)),
+            ("credentials", charts_mod.credential_chart, (snap.top_credentials,)),
+            ("hourly", charts_mod.hourly_heatmap, (snap.hourly_heatmap,)),
+        ]
+        out: dict[str, str] = {}
+        for name, fn, args in specs:
+            try:
+                out[name] = fn(*args)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("chart %s failed: %s", name, exc)
+                out[name] = ""
+        return out
+
+    def _build_html(self) -> tuple[str, dict[str, Any]]:
+        """Build the full HTML report string and return (html, context)."""
         snap = self.analyzer.snapshot(top_n=self.config.reporting.top_n_attackers)
         geo_rows = self.geo_compare.compare()
+        chart_images = self._build_charts(snap)
 
-        context = {
+        context: dict[str, Any] = {
             "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "total_events": snap.total_events,
             "unique_ips": snap.unique_ips,
@@ -230,6 +261,10 @@ class ReportGenerator:
             "ioc_summary": snap.ioc_summary,
             "top_iocs": snap.top_iocs,
             "iocs_by_type": snap.iocs_by_type,
+            "events_by_hour": snap.events_by_hour,
+            "time_range": snap.time_range,
+            "charts": chart_images,
+            "version": _HONEYTRAP_VERSION,
         }
 
         try:
@@ -238,11 +273,31 @@ class ReportGenerator:
         except Exception as exc:  # noqa: BLE001
             logger.warning("HTML template render failed: %s", exc)
             html = self._minimal_html(context)
+        return html, context
 
+    def render_html(self, output_path: Path | str) -> Path:
+        """Write a standalone HTML report. Returns the output path."""
+        html, _ = self._build_html()
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(html, encoding="utf-8")
         return out
+
+    # ------------------------------------------------------------------
+    # PDF
+    # ------------------------------------------------------------------
+    def render_pdf(self, output_path: Path | str) -> Path:
+        """Render the HTML report to a PDF file.
+
+        Requires the ``[pdf]`` extra (``weasyprint``). Raises
+        :class:`honeytrap.reporting.pdf_export.PDFExportError` if the
+        dependency is missing or conversion fails.
+        """
+        from honeytrap.reporting.pdf_export import export_pdf
+
+        html, _ = self._build_html()
+        out = Path(output_path)
+        return export_pdf(html, out)
 
     @staticmethod
     def _minimal_html(context: dict[str, Any]) -> str:

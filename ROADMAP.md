@@ -68,3 +68,14 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] Technique-to-attacker correlation and attack timeline queries
 - [x] "MITRE ATT&CK Coverage" + "Indicators of Compromise" sections in terminal and HTML reports
 - [x] Top-ATT&CK and IOC-by-type panel on the live dashboard
+
+## Phase 7 — Enhanced Reporting ✅
+
+- [x] Matplotlib-based chart generator (timeline, protocol, country, technique, tactic, credentials, hourly)
+- [x] Dark SOC-style HTML report template with embedded base64 PNG charts
+- [x] Navigation sidebar with anchor links to every section
+- [x] 7×24 day-of-week × hour-of-day activity heatmap
+- [x] Print-friendly CSS (`@media print`) for browser-based PDF
+- [x] WeasyPrint-backed PDF export (optional `[pdf]` extra)
+- [x] `honeytrap report --format terminal|html|pdf` CLI switch
+- [x] Analyzer snapshots include `events_by_hour`, `hourly_heatmap`, `time_range`

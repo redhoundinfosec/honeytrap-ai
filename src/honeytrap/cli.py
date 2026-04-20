@@ -82,9 +82,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     report_cmd = sub.add_parser("report", help="Generate an attack report from the database.")
     report_cmd.add_argument(
-        "--format", choices=["terminal", "html"], default="terminal", help="Output format."
+        "--format",
+        choices=["terminal", "html", "pdf"],
+        default="terminal",
+        help="Output format.",
     )
-    report_cmd.add_argument("--out", help="Output path for HTML format.")
+    report_cmd.add_argument("--out", help="Output path for HTML/PDF formats.")
 
     list_cmd = sub.add_parser("list-profiles", help="List bundled device profiles.")
     _ = list_cmd
@@ -273,6 +276,20 @@ def _cmd_report(args: argparse.Namespace, cfg: Config) -> int:
             out = Path(args.out or Path(cfg.reporting.output_directory) / "report.html")
             written = generator.render_html(out)
             console.print(f"[green]HTML report written to {written}[/green]")
+        elif args.format == "pdf":
+            from honeytrap.reporting.pdf_export import PDFExportError
+
+            out = Path(args.out or Path(cfg.reporting.output_directory) / "report.pdf")
+            try:
+                written = generator.render_pdf(out)
+                console.print(f"[green]PDF report written to {written}[/green]")
+            except PDFExportError as exc:
+                console.print(f"[red]PDF export failed: {exc}[/red]")
+                console.print(
+                    "[yellow]Install the optional PDF extra: "
+                    "pip install honeytrap-ai[pdf][/yellow]"
+                )
+                return 1
         else:
             generator.render_terminal(console)
         return 0

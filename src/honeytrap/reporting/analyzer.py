@@ -32,6 +32,9 @@ class AnalysisSnapshot:
     ioc_summary: list[dict[str, Any]]
     top_iocs: list[dict[str, Any]]
     iocs_by_type: dict[str, list[dict[str, Any]]]
+    events_by_hour: list[dict[str, Any]]
+    hourly_heatmap: list[list[int]]
+    time_range: tuple[str | None, str | None]
 
 
 class Analyzer:
@@ -63,7 +66,43 @@ class Analyzer:
             ioc_summary=self.database.get_ioc_summary(),
             top_iocs=self.database.get_top_iocs(top_n),
             iocs_by_type=iocs_by_type,
+            events_by_hour=self._events_by_hour(),
+            hourly_heatmap=self._hourly_heatmap(),
+            time_range=self._time_range(),
         )
+
+    # ------------------------------------------------------------------
+    # Time-series helpers
+    # ------------------------------------------------------------------
+    def _events_by_hour(self) -> list[dict[str, Any]]:
+        """Return hourly event counts. Safe on empty / missing method."""
+        fn = getattr(self.database, "events_by_hour", None)
+        if fn is None:
+            return []
+        try:
+            return list(fn())
+        except Exception:  # noqa: BLE001
+            return []
+
+    def _hourly_heatmap(self) -> list[list[int]]:
+        """Return a 7x24 matrix of event counts, all zeros if none available."""
+        fn = getattr(self.database, "hourly_heatmap_data", None)
+        if fn is None:
+            return [[0] * 24 for _ in range(7)]
+        try:
+            return list(fn())
+        except Exception:  # noqa: BLE001
+            return [[0] * 24 for _ in range(7)]
+
+    def _time_range(self) -> tuple[str | None, str | None]:
+        """Return the (earliest, latest) event timestamp range."""
+        fn = getattr(self.database, "time_range", None)
+        if fn is None:
+            return (None, None)
+        try:
+            return fn()
+        except Exception:  # noqa: BLE001
+            return (None, None)
 
     # ------------------------------------------------------------------
     # Novel pattern detection

@@ -290,3 +290,60 @@ real-world scanner fleets and targeted DoS without resource-exhaustion.
 - Modified: ``src/honeytrap/ui/dashboard.py`` (Security panel)
 - Modified: ``honeytrap.example.yaml`` (four new sections)
 - Modified: ``ROADMAP.md`` (Phase 5 added and marked complete)
+
+---
+
+## 2026-04-20 — Cycle 4: Enhanced Reporting (Charts + PDF Export)
+
+**Summary**
+
+Transformed the basic HTML report into a professional, dark-themed intelligence
+report with embedded matplotlib charts and optional PDF export. Reports now
+feel like a SOC analyst's dashboard rather than a raw dump of tables, and can
+be exported to PDF for stakeholder briefings and incident documentation.
+
+**Highlights**
+
+- New ``src/honeytrap/reporting/charts.py`` with seven embedded chart functions
+  (attack timeline, protocol distribution, country distribution, ATT&CK
+  techniques, tactic heatmap, top credentials, 7×24 day-of-week × hour-of-day
+  activity grid). All charts return base64 PNGs for single-file HTML output
+  and use a consistent dark palette (``#1a1a2e`` / ``#53d2dc`` / ``#e94560``).
+- Rewritten ``report.html`` template with sidebar navigation, anchor-linked
+  sections, summary stat cards, and print-friendly ``@media print`` styles.
+- New ``src/honeytrap/reporting/pdf_export.py`` using WeasyPrint behind an
+  optional ``[pdf]`` extra, with a graceful fallback message when the
+  dependency is missing.
+- ``ReportGenerator`` now exposes ``render_pdf`` and wires chart generation
+  into ``render_html``, tolerating per-chart failures without breaking the
+  rest of the report.
+- ``Analyzer`` snapshots gained ``events_by_hour``, ``hourly_heatmap``, and
+  ``time_range`` fields, backed by new ``AttackDatabase`` methods.
+- CLI extended: ``honeytrap report --format terminal|html|pdf``.
+
+**Test impact**
+
+- Added ``tests/test_charts.py`` (17 tests covering every chart function with
+  populated and empty inputs, asserting valid base64 PNG output).
+- Extended ``tests/test_reporting.py`` with 12 new tests (HTML chart
+  embedding, empty-database safety, new analyzer fields, PDF mock/missing-dep
+  flows, graceful chart-failure handling).
+- Full suite: 143 tests passing (up from 114).
+
+**Files changed**
+
+- Added: ``src/honeytrap/reporting/charts.py``
+- Added: ``src/honeytrap/reporting/pdf_export.py``
+- Added: ``tests/test_charts.py``
+- Modified: ``src/honeytrap/reporting/analyzer.py`` (three new fields and
+  helpers)
+- Modified: ``src/honeytrap/reporting/generator.py`` (chart wiring,
+  ``render_pdf``, version in footer)
+- Modified: ``src/honeytrap/reporting/templates/report.html`` (dark theme,
+  sidebar, embedded charts, print CSS)
+- Modified: ``src/honeytrap/logging/database.py`` (``events_by_hour``,
+  ``hourly_heatmap_data``, ``time_range``)
+- Modified: ``src/honeytrap/cli.py`` (``--format pdf`` option)
+- Modified: ``tests/test_reporting.py``
+- Modified: ``pyproject.toml`` (``matplotlib`` added, new ``[pdf]`` extra)
+- Modified: ``ROADMAP.md`` (Phase 7 added and marked complete)
