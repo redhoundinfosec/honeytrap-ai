@@ -34,9 +34,11 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] SSH handler (asyncssh)
 - [x] SMB handler (lightweight asyncio)
 - [x] Telnet handler (Mirai-style creds)
+- [x] SMTP handler (custom asyncio, zero new deps — Postfix-style open relay)
+- [x] MySQL handler (custom asyncio, speaks protocol v10 with handshake, auth, COM_QUERY)
+- [x] Combined `full_enterprise` profile running HTTP + SSH + FTP + SMTP + MySQL in one process
 - [ ] Full impacket-backed SMB share server
-- [ ] SMTP handler (aiosmtpd)
-- [ ] MySQL handler
+- [ ] POP3 / IMAP handlers (placeholders in `profiles/mail_server.yaml`)
 - [ ] Optional Textual-based interactive dashboard with filters
 - [ ] GitHub community templates, PyPI release
 - [ ] Docs site (mkdocs)

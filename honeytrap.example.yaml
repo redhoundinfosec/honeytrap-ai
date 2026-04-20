@@ -49,6 +49,8 @@ timeouts:
   telnet_idle: 300.0
   ftp_idle: 60.0
   smb_idle: 60.0
+  smtp_idle: 300.0
+  mysql_idle: 120.0
 
 # Input sanitization — caps on body size, header count, command length.
 sanitizer:

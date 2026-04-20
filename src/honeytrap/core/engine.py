@@ -125,7 +125,9 @@ class Engine:
         # Local import avoids circular imports.
         from honeytrap.protocols.ftp_handler import FTPHandler
         from honeytrap.protocols.http_handler import HTTPHandler
+        from honeytrap.protocols.mysql_handler import MySQLHandler
         from honeytrap.protocols.smb_handler import SMBHandler
+        from honeytrap.protocols.smtp_handler import SMTPHandler
         from honeytrap.protocols.ssh_handler import SSHHandler
         from honeytrap.protocols.telnet_handler import TelnetHandler
 
@@ -136,6 +138,8 @@ class Engine:
             "ftp": FTPHandler,
             "smb": SMBHandler,
             "telnet": TelnetHandler,
+            "smtp": SMTPHandler,
+            "mysql": MySQLHandler,
         }
 
         handlers: list[ProtocolHandler] = []

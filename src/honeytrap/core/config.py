@@ -97,6 +97,8 @@ class TimeoutsConfig:
     telnet_idle: float = 300.0
     ftp_idle: float = 60.0
     smb_idle: float = 60.0
+    smtp_idle: float = 300.0
+    mysql_idle: float = 120.0
 
 
 @dataclass

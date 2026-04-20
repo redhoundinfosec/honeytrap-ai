@@ -175,6 +175,25 @@ TECHNIQUE_DB: dict[str, dict[str, str]] = {
             "for files containing insecurely stored credentials."
         ),
     },
+    "T1071.003": {
+        "id": "T1071.003",
+        "name": "Application Layer Protocol: Mail Protocols",
+        "tactic": "Command and Control",
+        "description": (
+            "Adversaries may communicate using application layer protocols "
+            "associated with electronic mail delivery to avoid detection."
+        ),
+    },
+    "T1005": {
+        "id": "T1005",
+        "name": "Data from Local System",
+        "tactic": "Collection",
+        "description": (
+            "Adversaries may search local system sources, such as file "
+            "systems and configuration files or local databases, to find "
+            "files of interest and sensitive data."
+        ),
+    },
 }
 
 
@@ -435,6 +454,28 @@ class ATTACKMapper:
                 add("T1110.001", confidence=0.75, matched_on="smb-auth")
             if event_type == "session_open":
                 add("T1021.002", confidence=0.6, matched_on="smb-session")
+
+        # --------- SMTP ---------
+        if protocol == "smtp":
+            if event_type == "auth_attempt":
+                add("T1110.001", confidence=0.8, matched_on="smtp-auth")
+                if (username.lower(), password) in _COMMON_WEAK_CREDS:
+                    add("T1110.004", confidence=0.8, matched_on="credential-stuffing")
+            if event_type in {"mail_from", "rcpt_to", "data_received", "open_relay"}:
+                add("T1071.003", confidence=0.7, matched_on="smtp-traffic")
+
+        # --------- MySQL ---------
+        if protocol == "mysql":
+            if event_type == "auth_attempt":
+                add("T1110.001", confidence=0.85, matched_on="mysql-auth")
+                if (username, password) in _COMMON_WEAK_CREDS:
+                    add("T1110.004", confidence=0.85, matched_on="credential-stuffing")
+            if event_type == "query":
+                query_text = _lowercase(data.get("query") or message)
+                if _SQL_INJECTION_RE.search(query_text):
+                    add("T1190", confidence=0.9, matched_on="sql-injection")
+                if "select *" in query_text or "select\t*" in query_text:
+                    add("T1005", confidence=0.75, matched_on="data-exfil-query")
 
         # --------- Port scanning (any protocol) ---------
         if event_type in _PORT_SCAN_EVENT_TYPES:

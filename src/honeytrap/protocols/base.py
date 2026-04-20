@@ -169,5 +169,7 @@ class ProtocolHandler(ABC):
             "telnet": timeouts.telnet_idle,
             "ftp": timeouts.ftp_idle,
             "smb": timeouts.smb_idle,
+            "smtp": timeouts.smtp_idle,
+            "mysql": timeouts.mysql_idle,
         }
         return float(mapping.get(self.name, 120.0))

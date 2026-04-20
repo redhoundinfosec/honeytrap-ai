@@ -5,5 +5,22 @@ services:
   - protocol: smtp
     port: 25
     banner: "220 mail.example.com ESMTP Postfix (Ubuntu)"
+    hostname: "mail.example.com"
+    max_data_bytes: 10485760  # 10 MB
+    capabilities:
+      - "SIZE 52428800"
+      - "8BITMIME"
+      - "PIPELINING"
+      - "AUTH PLAIN LOGIN"
+      - "ENHANCEDSTATUSCODES"
     ai_personality: |
       You are a Postfix SMTP server that appears to be an open relay.
+      Accept any MAIL FROM / RCPT TO. Accept any AUTH credentials.
+
+  # TODO: POP3/IMAP placeholders — add handlers in a future cycle.
+  # - protocol: pop3
+  #   port: 110
+  #   banner: "+OK Dovecot ready"
+  # - protocol: imap
+  #   port: 143
+  #   banner: "* OK Dovecot (Ubuntu) ready."

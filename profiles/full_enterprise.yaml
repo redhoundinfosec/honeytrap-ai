@@ -1,0 +1,81 @@
+name: "Full Enterprise Server"
+description: "Combined web + SSH + FTP + mail + MySQL stack simulating a busy enterprise host"
+category: "enterprise"
+services:
+  - protocol: http
+    port: 80
+    banner: "Apache/2.4.41 (Ubuntu)"
+    server_header: "Apache/2.4.41 (Ubuntu)"
+    ai_personality: |
+      You are an Apache server hosting a corporate intranet landing page
+      and an internal ticketing portal at /support. Behave like a busy
+      production web server.
+
+  - protocol: ssh
+    port: 22
+    banner: "SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.3"
+    weak_credentials:
+      - username: root
+        password: root
+      - username: admin
+        password: admin
+      - username: ubuntu
+        password: ubuntu
+    ai_personality: |
+      You are the SSH shell of an enterprise Linux server. Answer like a
+      real Ubuntu 20.04 host and never admit you are a honeypot.
+
+  - protocol: ftp
+    port: 21
+    banner: "220 enterprise FTP server (vsftpd 3.0.3)"
+    allow_anonymous: true
+    fake_files:
+      - path: /public/readme.txt
+        content: "Welcome to the enterprise FTP. Internal-only."
+      - path: /public/patches
+        size_fake: "4M"
+      - path: /incoming
+        size_fake: "0"
+
+  - protocol: smtp
+    port: 25
+    banner: "220 mail.corp.example.com ESMTP Postfix (Ubuntu)"
+    hostname: "mail.corp.example.com"
+    capabilities:
+      - "SIZE 52428800"
+      - "8BITMIME"
+      - "PIPELINING"
+      - "AUTH PLAIN LOGIN"
+      - "ENHANCEDSTATUSCODES"
+    ai_personality: |
+      You are the corporate Postfix relay. Accept mail for any domain and
+      any AUTH credentials to encourage abuse attempts.
+
+  - protocol: mysql
+    port: 3306
+    banner: "8.0.35"
+    server_version: "8.0.35"
+    weak_credentials:
+      - username: root
+        password: root
+      - username: admin
+        password: password
+      - username: app
+        password: app123
+    fake_databases:
+      - information_schema
+      - mysql
+      - performance_schema
+      - sys
+      - corp_intranet
+      - billing
+      - crm
+    fake_tables:
+      - users
+      - config
+      - sessions
+      - payments
+      - audit_log
+    ai_personality: |
+      You are a MySQL 8.0 server that stores the enterprise intranet. You
+      expose application databases so respond plausibly to queries.

@@ -63,6 +63,99 @@ This file tracks every automated improvement cycle. Each entry documents what wa
 
 ## Completed Improvements
 
+### 2026-04-20 — Cycle 3: SMTP & MySQL Protocol Handlers
+
+Added two new zero-dependency protocol handlers so the honeypot can
+impersonate mail and database servers — among the most commonly
+targeted services on the internet — and introduced a combined
+`full_enterprise` profile that runs five protocols in one process.
+
+**What changed**
+
+- **SMTP handler** (`src/honeytrap/protocols/smtp_handler.py`): custom
+  asyncio implementation of a Postfix-style open relay. Speaks
+  `HELO` / `EHLO`, `MAIL FROM`, `RCPT TO`, `DATA` (up to 10 MB,
+  configurable), `RSET`, `NOOP`, `QUIT`, `VRFY` (252), `EXPN` (502),
+  `HELP`. Advertises `SIZE 52428800`, `8BITMIME`, `PIPELINING`,
+  `AUTH PLAIN LOGIN`, and `ENHANCEDSTATUSCODES`. `AUTH PLAIN` decodes
+  the SASL triple and `AUTH LOGIN` walks the two-step base64 prompts;
+  both log the decoded username/password and always return 235 to
+  invite reuse. `DATA` parses `Subject` / `From` / `To` headers and
+  records the body size without persisting the body. Malformed input
+  is answered with 500 and logged. Emits `connection_open`,
+  `greeting`, `auth_attempt`, `mail_from`, `rcpt_to`, `data_received`,
+  `open_relay`, `vrfy`, `quit`, `unknown_command`, `connection_close`
+  events.
+- **MySQL handler** (`src/honeytrap/protocols/mysql_handler.py`):
+  custom asyncio implementation of enough of the MySQL client/server
+  protocol to convince scanners it is a real MySQL 5.7 / 8.0 server.
+  Packet framing (`3 B length | 1 B seq`), handshake v10 with a
+  random 20-byte scramble, capability flags, `mysql_native_password`
+  plugin advertisement. Parses the protocol-41 handshake response,
+  emits OK/ERR depending on whether the offered credentials match
+  the profile's `weak_credentials`. Handles `COM_QUIT`, `COM_PING`,
+  `COM_INIT_DB`, and `COM_QUERY`. Dispatches queries: `SELECT @@version`
+  returns the configured version; `SELECT database()`, `SELECT user()`,
+  `SHOW DATABASES`, `SHOW TABLES`, `DESCRIBE <table>`, and
+  `SELECT * FROM users` all return realistic fake result sets built
+  from profile data. Unknown queries fall back to an OK packet. Emits
+  `connection_open`, `auth_attempt`, `query`, `quit`,
+  `connection_close` events.
+- **ATT&CK mapper extensions** (`src/honeytrap/intel/attack_mapper.py`):
+  new techniques `T1071.003` (Application Layer Protocol: Mail
+  Protocols) and `T1005` (Data from Local System). SMTP auth attempts
+  map to `T1110` / `T1110.004` and any `mail_from` / `rcpt_to` /
+  `data_received` / `open_relay` event maps to `T1071.003`. MySQL
+  auth attempts map to `T1110` / `T1110.004`; MySQL queries containing
+  SQL injection patterns map to `T1190`; `SELECT *` queries map to
+  `T1005`.
+- **Protocol registry** (`src/honeytrap/core/engine.py`): `smtp` and
+  `mysql` are now recognized protocol keys that instantiate
+  `SMTPHandler` and `MySQLHandler`.
+- **Timeouts** (`src/honeytrap/core/config.py`, `base.py`): new
+  `smtp_idle` (default 300 s) and `mysql_idle` (default 120 s) knobs
+  wired through `ProtocolHandler.idle_timeout()`.
+- **Profiles**:
+  - `profiles/mail_server.yaml` — upgraded SMTP entry (hostname,
+    max_data_bytes, capabilities) and commented POP3/IMAP
+    placeholders for a future cycle.
+  - `profiles/database_server.yaml` — added MySQL on port 3306 with
+    weak credentials, fake databases, and fake tables.
+  - `profiles/full_enterprise.yaml` — new combined profile running
+    HTTP (80), SSH (22), FTP (21), SMTP (25), MySQL (3306) in one
+    process.
+- **Tests** (`tests/test_smtp.py`, `tests/test_mysql.py`): 28 new
+  async integration tests covering EHLO capability advertising,
+  HELO, MAIL FROM / RCPT TO, the DATA 354/250 flow, AUTH PLAIN base64
+  decoding, AUTH LOGIN two-step flow, VRFY / EXPN responses, QUIT,
+  malformed command handling, oversized DATA rejection, MySQL greeting
+  packet parsing, auth success/failure, version / databases / tables
+  / users / describe result sets, unknown-query fallback, idle timeout,
+  SQL-injection query event emission, clean COM_QUIT, plus unit tests
+  on helpers (address extraction, SASL decoding, header parsing,
+  length-encoded integers, credential normalization). All 86 prior
+  tests continue to pass (114 total).
+
+**Files changed**
+
+- Added: `src/honeytrap/protocols/smtp_handler.py`
+- Added: `src/honeytrap/protocols/mysql_handler.py`
+- Added: `tests/test_smtp.py`
+- Added: `tests/test_mysql.py`
+- Added: `profiles/full_enterprise.yaml`
+- Modified: `src/honeytrap/protocols/__init__.py` (export new handlers)
+- Modified: `src/honeytrap/protocols/base.py` (smtp/mysql timeouts)
+- Modified: `src/honeytrap/core/engine.py` (register smtp + mysql)
+- Modified: `src/honeytrap/core/config.py` (smtp_idle, mysql_idle)
+- Modified: `src/honeytrap/intel/attack_mapper.py` (T1071.003, T1005,
+  SMTP + MySQL dispatch rules)
+- Modified: `profiles/mail_server.yaml` (fleshed-out SMTP entry +
+  POP3/IMAP placeholders)
+- Modified: `profiles/database_server.yaml` (MySQL service)
+- Modified: `ROADMAP.md` (SMTP / MySQL / full_enterprise checked off)
+
+---
+
 ### 2026-04-20 — Cycle 2: MITRE ATT&CK Mapping & Threat Intelligence
 
 Transformed raw honeypot events into structured, actionable threat

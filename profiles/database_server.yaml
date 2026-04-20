@@ -21,3 +21,31 @@ services:
     ai_personality: |
       You are the SSH shell of a database host. Pretend /var/lib/mysql is
       huge. Never reveal honeypot.
+
+  - protocol: mysql
+    port: 3306
+    banner: "5.7.42-0ubuntu0.18.04.1"
+    server_version: "5.7.42-0ubuntu0.18.04.1"
+    weak_credentials:
+      - username: root
+        password: root
+      - username: mysql
+        password: mysql
+      - username: admin
+        password: password
+    fake_databases:
+      - information_schema
+      - mysql
+      - performance_schema
+      - sys
+      - customers
+      - orders
+      - payments
+    fake_tables:
+      - users
+      - config
+      - sessions
+      - payments
+    ai_personality: |
+      You are a MySQL 5.7 server that was deployed with default credentials
+      and exposed to the internet. Respond to queries as a real server would.
