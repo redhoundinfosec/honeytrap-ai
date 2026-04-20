@@ -45,6 +45,41 @@ CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_country ON events(country_code);
 CREATE INDEX IF NOT EXISTS idx_events_proto ON events(protocol);
 CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
+
+CREATE TABLE IF NOT EXISTS attack_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    technique_id TEXT NOT NULL,
+    technique_name TEXT NOT NULL,
+    tactic TEXT NOT NULL,
+    sub_technique_id TEXT DEFAULT '',
+    confidence REAL DEFAULT 0.8,
+    matched_on TEXT DEFAULT '',
+    timestamp TEXT NOT NULL,
+    remote_ip TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_attack_event ON attack_mappings(event_id);
+CREATE INDEX IF NOT EXISTS idx_attack_tech ON attack_mappings(technique_id);
+CREATE INDEX IF NOT EXISTS idx_attack_tactic ON attack_mappings(tactic);
+CREATE INDEX IF NOT EXISTS idx_attack_ip ON attack_mappings(remote_ip);
+
+CREATE TABLE IF NOT EXISTS iocs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,
+    value TEXT NOT NULL,
+    context TEXT DEFAULT '',
+    first_seen TEXT NOT NULL,
+    last_seen TEXT NOT NULL,
+    confidence REAL DEFAULT 0.8,
+    session_id TEXT DEFAULT '',
+    sightings INTEGER DEFAULT 1,
+    UNIQUE(type, value)
+);
+
+CREATE INDEX IF NOT EXISTS idx_iocs_type ON iocs(type);
+CREATE INDEX IF NOT EXISTS idx_iocs_value ON iocs(value);
+CREATE INDEX IF NOT EXISTS idx_iocs_session ON iocs(session_id);
 """
 
 
@@ -75,11 +110,14 @@ class AttackDatabase:
     # ------------------------------------------------------------------
     # Writes
     # ------------------------------------------------------------------
-    def record_event(self, event: Event) -> None:
-        """Insert a single event row."""
+    def record_event(self, event: Event) -> int | None:
+        """Insert a single event row.
+
+        Returns the inserted row id, or ``None`` on failure.
+        """
         with self._lock:
             try:
-                self._conn.execute(
+                cur = self._conn.execute(
                     """
                     INSERT INTO events (
                         timestamp, protocol, event_type, remote_ip, remote_port,
@@ -107,8 +145,83 @@ class AttackDatabase:
                         json.dumps(event.data, ensure_ascii=False, default=str),
                     ),
                 )
+                return int(cur.lastrowid) if cur.lastrowid is not None else None
             except sqlite3.Error as exc:
                 logger.warning("SQLite insert failed: %s", exc)
+                return None
+
+    def record_attack_mapping(
+        self,
+        event_id: int,
+        mapping: Any,
+        *,
+        timestamp: str | None = None,
+        remote_ip: str = "",
+    ) -> None:
+        """Persist a single :class:`ATTACKMapping` row.
+
+        ``mapping`` is typed ``Any`` to avoid a hard dependency cycle with the
+        intel module; the object must expose ``technique_id``, ``technique_name``,
+        ``tactic``, ``sub_technique_id``, ``confidence``, and ``matched_on``.
+        """
+        from datetime import datetime, timezone
+
+        ts = timestamp or datetime.now(timezone.utc).isoformat()
+        with self._lock:
+            try:
+                self._conn.execute(
+                    """
+                    INSERT INTO attack_mappings (
+                        event_id, technique_id, technique_name, tactic,
+                        sub_technique_id, confidence, matched_on, timestamp, remote_ip
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event_id,
+                        mapping.technique_id,
+                        mapping.technique_name,
+                        mapping.tactic,
+                        mapping.sub_technique_id or "",
+                        float(mapping.confidence),
+                        getattr(mapping, "matched_on", "") or "",
+                        ts,
+                        remote_ip,
+                    ),
+                )
+            except sqlite3.Error as exc:
+                logger.warning("SQLite insert failed (attack_mapping): %s", exc)
+
+    def record_ioc(self, ioc: Any) -> None:
+        """Insert or update an IOC row.
+
+        Re-observing an existing (type, value) pair refreshes ``last_seen``,
+        raises confidence if higher, and increments the sighting counter.
+        """
+        with self._lock:
+            try:
+                self._conn.execute(
+                    """
+                    INSERT INTO iocs (
+                        type, value, context, first_seen, last_seen,
+                        confidence, session_id, sightings
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                    ON CONFLICT(type, value) DO UPDATE SET
+                        last_seen = excluded.last_seen,
+                        confidence = MAX(iocs.confidence, excluded.confidence),
+                        sightings = iocs.sightings + 1
+                    """,
+                    (
+                        ioc.type,
+                        ioc.value,
+                        ioc.context,
+                        ioc.first_seen.isoformat(),
+                        ioc.last_seen.isoformat(),
+                        float(ioc.confidence),
+                        ioc.session_id,
+                    ),
+                )
+            except sqlite3.Error as exc:
+                logger.warning("SQLite insert failed (ioc): %s", exc)
 
     # ------------------------------------------------------------------
     # Reads used by the reporting layer
@@ -240,6 +353,123 @@ class AttackDatabase:
                 "SELECT COUNT(DISTINCT remote_ip) FROM events WHERE remote_ip != ''"
             )
             return int(cur.fetchone()[0])
+
+    # ------------------------------------------------------------------
+    # Threat intelligence queries
+    # ------------------------------------------------------------------
+    def get_top_techniques(self, limit: int = 20) -> list[dict[str, Any]]:
+        """Return the most-observed MITRE ATT&CK techniques."""
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                SELECT technique_id, technique_name, tactic,
+                       COUNT(*) AS events,
+                       COUNT(DISTINCT remote_ip) AS unique_ips,
+                       AVG(confidence) AS avg_confidence
+                FROM attack_mappings
+                GROUP BY technique_id, technique_name, tactic
+                ORDER BY events DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            cols = [c[0] for c in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def get_tactic_distribution(self) -> list[dict[str, Any]]:
+        """Return event counts grouped by ATT&CK tactic."""
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                SELECT tactic, COUNT(*) AS events,
+                       COUNT(DISTINCT technique_id) AS techniques
+                FROM attack_mappings
+                GROUP BY tactic
+                ORDER BY events DESC
+                """
+            )
+            cols = [c[0] for c in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def get_technique_to_attacker(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Return technique IDs correlated with attacker IPs."""
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                SELECT technique_id, technique_name, remote_ip,
+                       COUNT(*) AS events
+                FROM attack_mappings
+                WHERE remote_ip != ''
+                GROUP BY technique_id, remote_ip
+                ORDER BY events DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            cols = [c[0] for c in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def get_attack_timeline(self, limit: int = 200) -> list[dict[str, Any]]:
+        """Return recent attack mappings in chronological order (newest first)."""
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                SELECT timestamp, technique_id, technique_name, tactic,
+                       remote_ip, confidence
+                FROM attack_mappings
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            cols = [c[0] for c in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def get_iocs_by_type(self, ioc_type: str, limit: int = 100) -> list[dict[str, Any]]:
+        """Return IOCs of a given type, ordered by sightings desc."""
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                SELECT type, value, context, first_seen, last_seen,
+                       confidence, session_id, sightings
+                FROM iocs
+                WHERE type = ?
+                ORDER BY sightings DESC, last_seen DESC
+                LIMIT ?
+                """,
+                (ioc_type, limit),
+            )
+            cols = [c[0] for c in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def get_ioc_summary(self) -> list[dict[str, Any]]:
+        """Return a per-type summary of IOC counts."""
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                SELECT type, COUNT(*) AS unique_values, SUM(sightings) AS sightings
+                FROM iocs
+                GROUP BY type
+                ORDER BY sightings DESC
+                """
+            )
+            cols = [c[0] for c in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def get_top_iocs(self, limit: int = 20) -> list[dict[str, Any]]:
+        """Return the most frequently-seen IOCs across all types."""
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                SELECT type, value, sightings, confidence, last_seen
+                FROM iocs
+                ORDER BY sightings DESC, last_seen DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            cols = [c[0] for c in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
 
     def geo_behavior(self) -> list[dict[str, Any]]:
         """Summarize attacker behavior per country for geo-response comparison."""

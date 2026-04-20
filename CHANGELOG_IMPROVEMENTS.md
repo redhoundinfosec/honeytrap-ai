@@ -63,6 +63,77 @@ This file tracks every automated improvement cycle. Each entry documents what wa
 
 ## Completed Improvements
 
+### 2026-04-20 — Cycle 2: MITRE ATT&CK Mapping & Threat Intelligence
+
+Transformed raw honeypot events into structured, actionable threat
+intelligence by adding a rule-based MITRE ATT&CK classifier, an IOC
+extractor, and persistence/reporting integrations across the stack.
+
+**What changed**
+
+- **ATT&CK mapper** (`src/honeytrap/intel/attack_mapper.py`): new
+  `ATTACKMapping` dataclass plus a `TECHNIQUE_DB` with 16 Enterprise
+  ATT&CK techniques (IDs, names, tactics, descriptions — all
+  verified against the official framework). Rule-based `ATTACKMapper`
+  classifies HTTP path traversal, admin-panel probing, `.env` / `.git`
+  leakage attempts, SQL injection, Log4Shell, scanner user-agents
+  (sqlmap / nikto / nuclei / gobuster / …), SSH/Telnet/FTP brute
+  force (with a Mirai-style credential-stuffing list), SSH/Telnet
+  command execution, `wget`/`curl`/`tftp` downloads, SMB share
+  enumeration, FTP anonymous login, and port scanning. Events can
+  match multiple techniques with independent confidence scores.
+- **IOC extractor** (`src/honeytrap/intel/ioc_extractor.py`): regex
+  extraction of IPv4, IPv6, URLs, domains, emails, MD5/SHA1/SHA256
+  hashes, and user-agent fingerprints. Skips RFC1918 / loopback /
+  IPv6 loopback. Deduplicates across sessions and maintains
+  first/last-seen timestamps. Supports SHA-256 payload hashing for
+  captured blobs.
+- **Database** (`src/honeytrap/logging/database.py`): new
+  `attack_mappings` and `iocs` tables with indexes and UNIQUE(type,
+  value) dedup on IOCs. Added `record_attack_mapping`, `record_ioc`,
+  `get_top_techniques`, `get_tactic_distribution`,
+  `get_technique_to_attacker`, `get_attack_timeline`,
+  `get_iocs_by_type`, `get_ioc_summary`, and `get_top_iocs`. Schema
+  is created on startup; existing databases are upgraded in place
+  via `CREATE TABLE IF NOT EXISTS`.
+- **Engine integration** (`src/honeytrap/core/engine.py`): every
+  emitted `Event` is classified and scanned for IOCs. Results are
+  stored in `event.data` (so dashboards, subscribers, and the JSONL
+  log all see them) and persisted to the new tables with the
+  returning row id linking mappings to events.
+- **Reporting** (`src/honeytrap/reporting/`): `AnalysisSnapshot`
+  gains `top_techniques`, `tactic_distribution`,
+  `technique_to_attacker`, `ioc_summary`, `top_iocs`, and
+  `iocs_by_type`. Terminal report and HTML template both render a
+  new "MITRE ATT&CK Coverage" section (with tactic distribution and
+  technique × attacker correlation) and an "Indicators of
+  Compromise" section.
+- **Dashboard** (`src/honeytrap/ui/dashboard.py`): new "Threat
+  Intel" panel showing the top five observed ATT&CK techniques (ID,
+  name, event count) and IOC counts by type.
+- **Tests** (`tests/test_intel.py`): 33 new tests covering
+  per-technique rule coverage, multi-technique events, confidence
+  scoring, credential-stuffing classification, IOC URL / IP /
+  domain / hash / email / IPv6 extraction, dedup, SHA-256 payload
+  hashing, and database persistence. All 53 prior tests still pass
+  (86 total).
+
+**Files changed**
+
+- Added: `src/honeytrap/intel/__init__.py`
+- Added: `src/honeytrap/intel/attack_mapper.py`
+- Added: `src/honeytrap/intel/ioc_extractor.py`
+- Added: `tests/test_intel.py`
+- Modified: `src/honeytrap/core/engine.py` (mapper + extractor pipeline)
+- Modified: `src/honeytrap/logging/database.py` (new tables, read/write APIs)
+- Modified: `src/honeytrap/reporting/analyzer.py` (extended snapshot)
+- Modified: `src/honeytrap/reporting/generator.py` (terminal + HTML sections)
+- Modified: `src/honeytrap/reporting/templates/report.html` (ATT&CK + IOC sections)
+- Modified: `src/honeytrap/ui/dashboard.py` (Threat Intel panel)
+- Modified: `ROADMAP.md` (Phase 6 added and marked complete)
+
+---
+
 ### 2026-04-20 — Cycle 1: Security Hardening & Connection Management
 
 Added a production-grade security layer so the honeypot can survive

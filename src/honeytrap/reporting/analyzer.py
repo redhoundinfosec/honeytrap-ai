@@ -26,6 +26,12 @@ class AnalysisSnapshot:
     events_by_type: list[dict[str, Any]]
     geo_behavior: list[dict[str, Any]]
     novel_patterns: list[dict[str, Any]]
+    top_techniques: list[dict[str, Any]]
+    tactic_distribution: list[dict[str, Any]]
+    technique_to_attacker: list[dict[str, Any]]
+    ioc_summary: list[dict[str, Any]]
+    top_iocs: list[dict[str, Any]]
+    iocs_by_type: dict[str, list[dict[str, Any]]]
 
 
 class Analyzer:
@@ -37,6 +43,9 @@ class Analyzer:
 
     def snapshot(self, *, top_n: int = 20) -> AnalysisSnapshot:
         """Build a single analysis snapshot."""
+        iocs_by_type: dict[str, list[dict[str, Any]]] = {}
+        for row in self.database.get_ioc_summary():
+            iocs_by_type[row["type"]] = self.database.get_iocs_by_type(row["type"], limit=top_n)
         return AnalysisSnapshot(
             total_events=self.database.count(),
             unique_ips=self.database.unique_ip_count(),
@@ -48,6 +57,12 @@ class Analyzer:
             events_by_type=self.database.events_by_type(),
             geo_behavior=self.database.geo_behavior(),
             novel_patterns=self._novel_patterns(top_n),
+            top_techniques=self.database.get_top_techniques(top_n),
+            tactic_distribution=self.database.get_tactic_distribution(),
+            technique_to_attacker=self.database.get_technique_to_attacker(top_n * 2),
+            ioc_summary=self.database.get_ioc_summary(),
+            top_iocs=self.database.get_top_iocs(top_n),
+            iocs_by_type=iocs_by_type,
         )
 
     # ------------------------------------------------------------------

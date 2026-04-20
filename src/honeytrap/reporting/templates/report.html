@@ -145,6 +145,80 @@
         </tbody>
     </table>
 
+    <h2>MITRE ATT&amp;CK Coverage</h2>
+    <p class="muted">
+        Observed attacker behavior mapped to the MITRE ATT&amp;CK Enterprise framework.
+    </p>
+    <table>
+        <thead><tr><th>Technique ID</th><th>Name</th><th>Tactic</th><th>Events</th><th>Unique IPs</th><th>Avg Confidence</th></tr></thead>
+        <tbody>
+            {% for t in top_techniques %}
+                <tr>
+                    <td><code>{{ t.technique_id }}</code></td>
+                    <td>{{ t.technique_name }}</td>
+                    <td>{{ t.tactic }}</td>
+                    <td>{{ t.events }}</td>
+                    <td>{{ t.unique_ips }}</td>
+                    <td>{{ '%.2f' % (t.avg_confidence or 0) }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" class="muted">No ATT&amp;CK mappings recorded yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3>Tactic Distribution</h3>
+    <table>
+        <thead><tr><th>Tactic</th><th>Events</th><th>Techniques</th></tr></thead>
+        <tbody>
+            {% for t in tactic_distribution %}
+                <tr><td>{{ t.tactic }}</td><td>{{ t.events }}</td><td>{{ t.techniques }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3>Technique &times; Attacker Correlation</h3>
+    <table>
+        <thead><tr><th>Technique</th><th>Name</th><th>Attacker IP</th><th>Events</th></tr></thead>
+        <tbody>
+            {% for t in technique_to_attacker %}
+                <tr>
+                    <td><code>{{ t.technique_id }}</code></td>
+                    <td>{{ t.technique_name }}</td>
+                    <td>{{ t.remote_ip }}</td>
+                    <td>{{ t.events }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Indicators of Compromise</h2>
+    <table>
+        <thead><tr><th>Type</th><th>Unique Values</th><th>Total Sightings</th></tr></thead>
+        <tbody>
+            {% for i in ioc_summary %}
+                <tr><td>{{ i.type }}</td><td>{{ i.unique_values }}</td><td>{{ i.sightings }}</td></tr>
+            {% else %}
+                <tr><td colspan="3" class="muted">No IOCs extracted yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3>Top IOCs</h3>
+    <table>
+        <thead><tr><th>Type</th><th>Value</th><th>Sightings</th><th>Confidence</th></tr></thead>
+        <tbody>
+            {% for i in top_iocs %}
+                <tr>
+                    <td>{{ i.type }}</td>
+                    <td><code>{{ i.value }}</code></td>
+                    <td>{{ i.sightings }}</td>
+                    <td>{{ '%.2f' % (i.confidence or 0) }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
     <h2>Novel / Interesting Patterns</h2>
     <table>
         <thead><tr><th>Kind</th><th>Value</th><th>Count</th></tr></thead>

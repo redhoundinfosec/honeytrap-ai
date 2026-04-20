@@ -46,6 +46,9 @@ class Dashboard:
         self._cred_counter: Counter[tuple[str, str]] = Counter()
         self._event_type_counter: Counter[str] = Counter()
         self._protocol_counter: Counter[str] = Counter()
+        self._technique_counter: Counter[str] = Counter()
+        self._technique_names: dict[str, str] = {}
+        self._ioc_type_counter: Counter[str] = Counter()
         self._unique_ips: set[str] = set()
         self._started_at = datetime.now(timezone.utc)
         self._stop = asyncio.Event()
@@ -104,6 +107,19 @@ class Dashboard:
         if event.event_type == "auth_attempt" and (event.username or event.password):
             self._cred_counter[(event.username, event.password)] += 1
 
+        # ATT&CK mappings + IOCs are attached to event.data by the engine.
+        techniques = (event.data or {}).get("attack_techniques") or []
+        for t in techniques:
+            tid = t.get("technique_id")
+            if tid:
+                self._technique_counter[tid] += 1
+                self._technique_names[tid] = t.get("technique_name") or tid
+        iocs = (event.data or {}).get("iocs") or []
+        for ioc in iocs:
+            kind = ioc.get("type")
+            if kind:
+                self._ioc_type_counter[kind] += 1
+
     # ------------------------------------------------------------------
     # Rendering
     # ------------------------------------------------------------------
@@ -112,12 +128,44 @@ class Dashboard:
         top_row = self._render_top_row()
         event_log = self._render_event_log()
         bottom_row = self._render_bottom_row()
+        intel_row = self._render_intel_row()
         security_row = self._render_security_row()
         footer = Panel(
             Text("[Q]uit   [R]eport   [P]ause   [F]ilter   [E]xport", justify="center"),
             style="bold white on grey11",
         )
-        return Group(header, top_row, event_log, bottom_row, security_row, footer)
+        return Group(header, top_row, event_log, bottom_row, intel_row, security_row, footer)
+
+    def _render_intel_row(self) -> Panel:
+        """Threat intel panel — top ATT&CK techniques and IOC counts."""
+        techniques = Table(title="Top ATT&CK Techniques", expand=True)
+        techniques.add_column("ID")
+        techniques.add_column("Technique", overflow="fold")
+        techniques.add_column("Events", style="bold red")
+        for tid, count in self._technique_counter.most_common(5):
+            techniques.add_row(
+                tid,
+                self._technique_names.get(tid, tid)[:40],
+                str(count),
+            )
+        if not self._technique_counter:
+            techniques.add_row("(none)", "No classified events yet", "0")
+
+        iocs = Table(title="IOCs by Type", expand=True, show_header=False)
+        iocs.add_column("Type")
+        iocs.add_column("Count", style="bold cyan")
+        for kind, count in sorted(
+            self._ioc_type_counter.items(), key=lambda kv: kv[1], reverse=True
+        ):
+            iocs.add_row(kind, str(count))
+        if not self._ioc_type_counter:
+            iocs.add_row("(none)", "0")
+
+        grid = Table.grid(expand=True)
+        grid.add_column(ratio=2)
+        grid.add_column(ratio=1)
+        grid.add_row(techniques, iocs)
+        return Panel(grid, title="Threat Intel (MITRE ATT&CK)", border_style="yellow")
 
     def _render_security_row(self) -> Panel:
         """Security / resource panel — rate-limited IPs + guardian stats.

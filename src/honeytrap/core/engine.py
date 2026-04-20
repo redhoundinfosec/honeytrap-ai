@@ -25,6 +25,8 @@ from honeytrap.core.sanitizer import InputSanitizer
 from honeytrap.core.session import SessionManager
 from honeytrap.exceptions import PortBindError
 from honeytrap.geo.resolver import GeoResolver
+from honeytrap.intel.attack_mapper import ATTACKMapper
+from honeytrap.intel.ioc_extractor import IOCExtractor
 from honeytrap.logging.database import AttackDatabase
 from honeytrap.logging.manager import LogManager
 from honeytrap.logging.models import Event
@@ -102,6 +104,10 @@ class Engine:
             rate_limiter=self.rate_limiter,
             enabled=config.guardian.enabled,
         )
+
+        # Threat intelligence layer — shared across every event.
+        self.attack_mapper = ATTACKMapper()
+        self.ioc_extractor = IOCExtractor()
 
         self.handlers: list[ProtocolHandler] = []
         self.active_ports: list[tuple[str, int, int]] = []
@@ -261,15 +267,64 @@ class Engine:
             pass
 
     async def emit_event(self, event: Event) -> None:
-        """Persist an event everywhere it needs to go (DB, JSONL, UI)."""
+        """Persist an event everywhere it needs to go (DB, JSONL, UI).
+
+        Side effects performed (in order):
+
+        1. Classify the event against MITRE ATT&CK and attach results to the
+           event's ``data`` dict so downstream consumers can see the
+           classification without re-running it.
+        2. Extract IOCs from the event body.
+        3. Write to the JSONL log and the SQLite event table.
+        4. Persist the ATT&CK mappings and IOCs to their own tables.
+        5. Fan out to live UI subscribers.
+        """
+        event_dict = event.to_dict()
+
+        # ---- Intel classification (best-effort; never block event emit) ----
+        try:
+            mappings = self.attack_mapper.map_event(event_dict)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("ATT&CK mapping failed: %s", exc)
+            mappings = []
+        try:
+            iocs = self.ioc_extractor.extract_from_event(event_dict)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("IOC extraction failed: %s", exc)
+            iocs = []
+
+        if mappings:
+            event.data.setdefault("attack_techniques", [m.to_dict() for m in mappings])
+        if iocs:
+            event.data.setdefault("iocs", [i.to_dict() for i in iocs])
+
         try:
             await self.log_manager.write_event(event)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to persist event: %s", exc)
+
+        event_id: int | None = None
         try:
-            self.database.record_event(event)
+            event_id = self.database.record_event(event)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to record event in DB: %s", exc)
+
+        if event_id is not None and mappings:
+            ts = event.timestamp.isoformat()
+            for m in mappings:
+                try:
+                    self.database.record_attack_mapping(
+                        event_id, m, timestamp=ts, remote_ip=event.remote_ip
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("Failed to record ATT&CK mapping: %s", exc)
+
+        for ioc in iocs:
+            try:
+                self.database.record_ioc(ioc)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Failed to record IOC: %s", exc)
+
         for queue in list(self._event_subscribers):
             try:
                 queue.put_nowait(event)

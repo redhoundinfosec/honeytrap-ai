@@ -157,6 +157,52 @@ class ReportGenerator:
                 ],
             )
         )
+        con.print(
+            _table(
+                "MITRE ATT&CK — Observed Techniques",
+                ["ID", "Name", "Tactic", "Events", "Unique IPs"],
+                [
+                    [
+                        t["technique_id"],
+                        t["technique_name"],
+                        t["tactic"],
+                        t["events"],
+                        t["unique_ips"],
+                    ]
+                    for t in snap.top_techniques
+                ],
+            )
+        )
+        con.print(
+            _table(
+                "ATT&CK Tactic Distribution",
+                ["Tactic", "Events", "Techniques"],
+                [
+                    [t["tactic"], t["events"], t["techniques"]]
+                    for t in snap.tactic_distribution
+                ],
+            )
+        )
+        con.print(
+            _table(
+                "Indicators of Compromise — Summary",
+                ["Type", "Unique Values", "Sightings"],
+                [
+                    [i["type"], i["unique_values"], i["sightings"]]
+                    for i in snap.ioc_summary
+                ],
+            )
+        )
+        con.print(
+            _table(
+                "Top IOCs",
+                ["Type", "Value", "Sightings"],
+                [
+                    [i["type"], i["value"][:80], i["sightings"]]
+                    for i in snap.top_iocs
+                ],
+            )
+        )
 
     # ------------------------------------------------------------------
     # HTML
@@ -178,6 +224,12 @@ class ReportGenerator:
             "events_by_type": snap.events_by_type,
             "geo_rows": geo_rows,
             "novel_patterns": snap.novel_patterns,
+            "top_techniques": snap.top_techniques,
+            "tactic_distribution": snap.tactic_distribution,
+            "technique_to_attacker": snap.technique_to_attacker,
+            "ioc_summary": snap.ioc_summary,
+            "top_iocs": snap.top_iocs,
+            "iocs_by_type": snap.iocs_by_type,
         }
 
         try:
