@@ -65,6 +65,32 @@ class FTPHandler(ProtocolHandler):
     async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         peer = writer.get_extra_info("peername") or ("", 0)
         remote_ip, remote_port = peer[0], peer[1]
+
+        # Security gate before we allocate anything — reject at the door.
+        allowed, decision, _reason = await self.check_connection_allowed(remote_ip)
+        if not allowed:
+            await self.log_rate_limit_event(remote_ip, remote_port, decision)
+            await self.apply_tarpit(decision)
+            try:
+                writer.write(b"421 Service not available, closing control connection.\r\n")
+                await writer.drain()
+            except Exception:  # noqa: BLE001
+                pass
+            writer.close()
+            return
+        await self.engine.rate_limiter.acquire(remote_ip)
+        try:
+            await self._handle_session(reader, writer, remote_ip, remote_port)
+        finally:
+            await self.engine.rate_limiter.release(remote_ip)
+
+    async def _handle_session(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        remote_ip: str,
+        remote_port: int,
+    ) -> None:
         geo = await self.resolve_geo(remote_ip)
         personality = self.engine.personalities.for_country(geo["country_code"])
         session = self.engine.sessions.create(remote_ip, remote_port, "ftp", self.bound_port)
@@ -93,13 +119,43 @@ class FTPHandler(ProtocolHandler):
             await writer.drain()
             username = ""
             cwd = "/"
+            idle_timeout = self.idle_timeout()
             while not reader.at_eof():
                 try:
-                    raw = await asyncio.wait_for(reader.readline(), timeout=120)
+                    # Bound the read so it never exceeds the configured
+                    # command limit; oversized bytes are inspected by the
+                    # sanitizer below and logged as a security event.
+                    raw = await asyncio.wait_for(
+                        reader.readuntil(b"\n"),
+                        timeout=idle_timeout,
+                    )
                 except asyncio.TimeoutError:
+                    await self.log_timeout_event(remote_ip, remote_port, idle_timeout)
+                    break
+                except asyncio.IncompleteReadError:
+                    break
+                except asyncio.LimitOverrunError:
+                    # Oversized single line — matches the sanitizer's intent.
+                    await self.log_sanitizer_event(
+                        remote_ip, remote_port, "ftp_line_overrun"
+                    )
                     break
                 if not raw:
                     break
+                sanitizer_result = self.engine.sanitizer.check_command(raw)
+                if not sanitizer_result.ok:
+                    await self.log_sanitizer_event(
+                        remote_ip,
+                        remote_port,
+                        sanitizer_result.reason,
+                        sanitizer_result.offending_hex,
+                    )
+                    try:
+                        writer.write(b"500 Command too long.\r\n")
+                        await writer.drain()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    continue
                 line = raw.rstrip(b"\r\n").decode("latin-1", errors="replace")
                 if not line:
                     continue

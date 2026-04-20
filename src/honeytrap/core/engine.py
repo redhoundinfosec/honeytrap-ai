@@ -18,7 +18,10 @@ from honeytrap.ai.geo_personality import GeoPersonalitySelector
 from honeytrap.ai.responder import AIResponder
 from honeytrap.ai.rule_engine import RuleEngine
 from honeytrap.core.config import Config
+from honeytrap.core.guardian import ResourceGuardian
 from honeytrap.core.profile import DeviceProfile, ServiceSpec
+from honeytrap.core.rate_limiter import RateLimiter
+from honeytrap.core.sanitizer import InputSanitizer
 from honeytrap.core.session import SessionManager
 from honeytrap.exceptions import PortBindError
 from honeytrap.geo.resolver import GeoResolver
@@ -69,6 +72,36 @@ class Engine:
         self.rules = RuleEngine(profile)
         self.ai = AIResponder(config.ai, self.rules)
         self.personalities = GeoPersonalitySelector(enabled=config.geo.vary_responses)
+
+        # Security layer — each of these is engine-global so every handler
+        # gets consistent limits without the caller having to wire it in.
+        self.rate_limiter = RateLimiter(
+            enabled=config.rate_limiter.enabled,
+            max_per_minute=config.rate_limiter.max_per_minute,
+            burst=config.rate_limiter.burst,
+            global_concurrent=config.rate_limiter.global_concurrent,
+            per_ip_concurrent=config.rate_limiter.per_ip_concurrent,
+            stale_after_seconds=config.rate_limiter.stale_after_seconds,
+            tarpit_on_limit=config.rate_limiter.tarpit_on_limit,
+            tarpit_seconds=config.rate_limiter.tarpit_seconds,
+        )
+        self.sanitizer = InputSanitizer(
+            enabled=config.sanitizer.enabled,
+            http_body_max=config.sanitizer.http_body_max,
+            other_body_max=config.sanitizer.other_body_max,
+            http_header_count_max=config.sanitizer.http_header_count_max,
+            http_header_size_max=config.sanitizer.http_header_size_max,
+            command_max=config.sanitizer.command_max,
+            reject_null_bytes=config.sanitizer.reject_null_bytes,
+        )
+        self.guardian = ResourceGuardian(
+            log_directory=log_dir,
+            memory_limit_mb=config.guardian.memory_limit_mb,
+            check_interval_seconds=config.guardian.check_interval_seconds,
+            log_dir_warn_mb=config.guardian.log_dir_warn_mb,
+            rate_limiter=self.rate_limiter,
+            enabled=config.guardian.enabled,
+        )
 
         self.handlers: list[ProtocolHandler] = []
         self.active_ports: list[tuple[str, int, int]] = []
@@ -166,6 +199,9 @@ class Engine:
 
         # Start background log management + periodic reports
         self._listeners.append(asyncio.create_task(self.log_manager.monitor()))
+        # Guardian runs as its own long-lived task; it self-registers so we
+        # don't need to add it to _listeners.
+        await self.guardian.start()
         await self.emit_event(
             Event(
                 protocol="engine",
@@ -185,6 +221,7 @@ class Engine:
         """Shut down every listener and flush buffers."""
         logger.info("Stopping HoneyTrap engine")
         self._stopping.set()
+        await self.guardian.stop()
         for handler in self.handlers:
             try:
                 await handler.stop()

@@ -40,3 +40,16 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [ ] Optional Textual-based interactive dashboard with filters
 - [ ] GitHub community templates, PyPI release
 - [ ] Docs site (mkdocs)
+
+## Phase 5 — Security Hardening ✅
+
+- [x] Per-IP token-bucket rate limiter with burst allowance
+- [x] Global + per-IP concurrent connection caps
+- [x] Automatic cleanup of stale IP entries
+- [x] Tarpit (slow-response) mode for rate-limited traffic
+- [x] Configurable idle timeouts per protocol (HTTP/SSH/Telnet/FTP/SMB)
+- [x] Input sanitization layer (body/header/command size limits)
+- [x] Binary / null-byte payload handling with raw-hex logging
+- [x] Resource guardian — memory, connection, log-disk monitoring
+- [x] Refuse new connections when under resource pressure
+- [x] Rate-limited IP + resource stats on the dashboard

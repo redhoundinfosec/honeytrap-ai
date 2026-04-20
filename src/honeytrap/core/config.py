@@ -75,6 +75,54 @@ class ReportingConfig:
 
 
 @dataclass
+class RateLimiterConfig:
+    """Settings for per-IP rate limiting and concurrent-connection caps."""
+
+    enabled: bool = True
+    max_per_minute: int = 30
+    burst: int = 10
+    global_concurrent: int = 500
+    per_ip_concurrent: int = 20
+    stale_after_seconds: float = 600.0
+    tarpit_on_limit: bool = False
+    tarpit_seconds: float = 2.0
+
+
+@dataclass
+class TimeoutsConfig:
+    """Protocol-specific idle timeouts (seconds)."""
+
+    http_idle: float = 120.0
+    ssh_idle: float = 300.0
+    telnet_idle: float = 300.0
+    ftp_idle: float = 60.0
+    smb_idle: float = 60.0
+
+
+@dataclass
+class SanitizerConfig:
+    """Settings for the input sanitization layer."""
+
+    enabled: bool = True
+    http_body_max: int = 1024 * 1024
+    other_body_max: int = 64 * 1024
+    http_header_count_max: int = 100
+    http_header_size_max: int = 8 * 1024
+    command_max: int = 4096
+    reject_null_bytes: bool = True
+
+
+@dataclass
+class GuardianConfig:
+    """Settings for the resource guardian."""
+
+    enabled: bool = True
+    memory_limit_mb: int = 256
+    check_interval_seconds: float = 5.0
+    log_dir_warn_mb: int = 2048
+
+
+@dataclass
 class Config:
     """Root configuration object."""
 
@@ -82,6 +130,10 @@ class Config:
     ai: AIConfig = field(default_factory=AIConfig)
     geo: GeoConfig = field(default_factory=GeoConfig)
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
+    rate_limiter: RateLimiterConfig = field(default_factory=RateLimiterConfig)
+    timeouts: TimeoutsConfig = field(default_factory=TimeoutsConfig)
+    sanitizer: SanitizerConfig = field(default_factory=SanitizerConfig)
+    guardian: GuardianConfig = field(default_factory=GuardianConfig)
 
     def to_dict(self) -> dict[str, Any]:
         """Return the config as a plain dictionary."""

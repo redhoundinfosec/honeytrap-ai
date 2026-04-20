@@ -112,11 +112,65 @@ class Dashboard:
         top_row = self._render_top_row()
         event_log = self._render_event_log()
         bottom_row = self._render_bottom_row()
+        security_row = self._render_security_row()
         footer = Panel(
             Text("[Q]uit   [R]eport   [P]ause   [F]ilter   [E]xport", justify="center"),
             style="bold white on grey11",
         )
-        return Group(header, top_row, event_log, bottom_row, footer)
+        return Group(header, top_row, event_log, bottom_row, security_row, footer)
+
+    def _render_security_row(self) -> Panel:
+        """Security / resource panel — rate-limited IPs + guardian stats.
+
+        We read from the engine's limiter/guardian synchronously because
+        both expose non-awaited accessors to their internal counters
+        (via private attributes). This is a best-effort render; stale
+        data is preferable to a coroutine-blocked UI.
+        """
+        limiter = getattr(self.engine, "rate_limiter", None)
+        guardian = getattr(self.engine, "guardian", None)
+
+        blocked = Table(title="Rate-Limited IPs", expand=True)
+        blocked.add_column("IP")
+        blocked.add_column("Blocks", style="bold red")
+        if limiter is not None:
+            top = sorted(
+                limiter._blocked_ips.items(), key=lambda kv: kv[1], reverse=True
+            )[:5]
+            for ip, count in top:
+                blocked.add_row(ip, str(count))
+            if not top:
+                blocked.add_row("(none)", "0")
+
+        resources = Table(title="Resources", expand=True, show_header=False)
+        resources.add_column("Metric")
+        resources.add_column("Value", style="bold cyan")
+        if guardian is not None:
+            s = guardian._stats
+            resources.add_row(
+                "Memory",
+                f"{s.memory_mb:.0f} / {s.memory_limit_mb:.0f} MB",
+            )
+            resources.add_row(
+                "Connections", f"{s.connections} / {s.connections_cap}"
+            )
+            resources.add_row(
+                "Log dir",
+                f"{s.log_dir_bytes / (1024 * 1024):.1f} MB",
+            )
+            status = "REFUSING" if s.should_refuse else "accepting"
+            resources.add_row("Status", status)
+            if s.refusal_reason:
+                resources.add_row("Reason", s.refusal_reason[:60])
+        if limiter is not None:
+            resources.add_row("Tracked IPs", str(len(limiter._buckets)))
+            resources.add_row("Global active", str(limiter._global_active))
+
+        grid = Table.grid(expand=True)
+        grid.add_column(ratio=1)
+        grid.add_column(ratio=1)
+        grid.add_row(blocked, resources)
+        return Panel(grid, title="Security", border_style="red")
 
     def _render_header(self) -> Panel:
         uptime = datetime.now(timezone.utc) - self._started_at

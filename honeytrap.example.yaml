@@ -29,3 +29,40 @@ reporting:
   html_export: true
   top_n_attackers: 20
   output_directory: "./honeytrap_reports"
+
+# Per-IP token-bucket rate limiting and concurrent-connection caps.
+rate_limiter:
+  enabled: true
+  max_per_minute: 30        # sustained allowance per source IP
+  burst: 10                 # bucket capacity — short bursts allowed
+  global_concurrent: 500    # hard cap across all IPs
+  per_ip_concurrent: 20     # hard cap from a single IP
+  stale_after_seconds: 600  # prune IP buckets idle longer than this
+  tarpit_on_limit: false    # if true, slow-respond instead of dropping
+  tarpit_seconds: 2.0
+
+# Idle timeouts (seconds). The handler closes the connection when a
+# client goes silent longer than the per-protocol limit.
+timeouts:
+  http_idle: 120.0
+  ssh_idle: 300.0
+  telnet_idle: 300.0
+  ftp_idle: 60.0
+  smb_idle: 60.0
+
+# Input sanitization — caps on body size, header count, command length.
+sanitizer:
+  enabled: true
+  http_body_max: 1048576       # 1 MB
+  other_body_max: 65536        # 64 KB
+  http_header_count_max: 100
+  http_header_size_max: 8192
+  command_max: 4096
+  reject_null_bytes: true
+
+# Resource guardian — monitors memory, connections, log disk use.
+guardian:
+  enabled: true
+  memory_limit_mb: 256
+  check_interval_seconds: 5.0
+  log_dir_warn_mb: 2048

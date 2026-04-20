@@ -59,6 +59,29 @@ class SMBHandler(ProtocolHandler):
     async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         peer = writer.get_extra_info("peername") or ("", 0)
         remote_ip, remote_port = peer[0], peer[1]
+
+        allowed, decision, _reason = await self.check_connection_allowed(remote_ip)
+        if not allowed:
+            await self.log_rate_limit_event(remote_ip, remote_port, decision)
+            await self.apply_tarpit(decision)
+            try:
+                writer.close()
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        await self.engine.rate_limiter.acquire(remote_ip)
+        try:
+            await self._handle_session(reader, writer, remote_ip, remote_port)
+        finally:
+            await self.engine.rate_limiter.release(remote_ip)
+
+    async def _handle_session(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        remote_ip: str,
+        remote_port: int,
+    ) -> None:
         geo = await self.resolve_geo(remote_ip)
         personality = self.engine.personalities.for_country(geo["country_code"])
         session = self.engine.sessions.create(remote_ip, remote_port, "smb", self.bound_port)
@@ -80,18 +103,38 @@ class SMBHandler(ProtocolHandler):
             )
         )
 
+        idle_timeout = self.idle_timeout()
         try:
             for _ in range(8):  # read up to 8 SMB packets then drop
                 try:
-                    header = await asyncio.wait_for(reader.readexactly(4), timeout=60)
-                except (asyncio.IncompleteReadError, asyncio.TimeoutError):
+                    header = await asyncio.wait_for(
+                        reader.readexactly(4), timeout=idle_timeout
+                    )
+                except asyncio.TimeoutError:
+                    await self.log_timeout_event(remote_ip, remote_port, idle_timeout)
+                    break
+                except asyncio.IncompleteReadError:
                     break
                 # NetBIOS session header: type(1) + flags(1) + length(2)
                 length = struct.unpack(">I", b"\x00" + header[1:4])[0]
                 length = length & 0x1FFFF  # cap at 128KB
+                # Sanitizer enforces the configured max; we still keep the
+                # protocol-level cap above as belt-and-braces.
+                if length > self.engine.sanitizer.other_body_max:
+                    await self.log_sanitizer_event(
+                        remote_ip,
+                        remote_port,
+                        f"smb_body_too_large:{length}",
+                    )
+                    break
                 try:
-                    body = await asyncio.wait_for(reader.readexactly(length), timeout=30)
-                except (asyncio.IncompleteReadError, asyncio.TimeoutError):
+                    body = await asyncio.wait_for(
+                        reader.readexactly(length), timeout=idle_timeout
+                    )
+                except asyncio.TimeoutError:
+                    await self.log_timeout_event(remote_ip, remote_port, idle_timeout)
+                    break
+                except asyncio.IncompleteReadError:
                     break
 
                 session.bytes_in += 4 + len(body)

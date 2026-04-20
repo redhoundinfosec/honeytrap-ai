@@ -53,9 +53,18 @@ class HTTPHandler(ProtocolHandler):
         """Start the aiohttp web server and begin accepting connections."""
         self.bind_address = bind_address
         self.bound_port = port
-        app = web.Application()
+        # client_max_size is a defense in depth: aiohttp hard-enforces this
+        # at the framework level even before our sanitizer runs.
+        body_cap = self.engine.sanitizer.http_body_max + 1024
+        app = web.Application(client_max_size=body_cap)
         app.router.add_route("*", "/{tail:.*}", self._dispatch)
-        self._runner = web.AppRunner(app, access_log=None)
+        idle = self.engine.config.timeouts.http_idle
+        self._runner = web.AppRunner(
+            app,
+            access_log=None,
+            handler_cancellation=True,
+            shutdown_timeout=max(1.0, idle),
+        )
         await self._runner.setup()
         self._site = web.TCPSite(self._runner, bind_address, port)
         try:
@@ -89,18 +98,72 @@ class HTTPHandler(ProtocolHandler):
     async def _handle(self, request: web.Request) -> web.StreamResponse:
         remote_ip = self._client_ip(request)
         remote_port = (request.transport.get_extra_info("peername") or ("", 0))[1]
+
+        # Security gate: rate limiter + resource guardian. HTTP has no
+        # analogue to "disconnect"; the right protocol-level answer is a
+        # 503 that tools like curl and scanners will log and back off on.
+        allowed, decision, _reason = await self.check_connection_allowed(remote_ip)
+        if not allowed:
+            await self.log_rate_limit_event(remote_ip, remote_port, decision)
+            await self.apply_tarpit(decision)
+            retry = int(max(1, decision.retry_after or 1))
+            return web.Response(
+                text="Service unavailable",
+                status=503,
+                headers={
+                    "Server": self.server_header,
+                    "Content-Type": "text/plain",
+                    "Retry-After": str(retry),
+                },
+            )
+
+        await self.engine.rate_limiter.acquire(remote_ip)
+        try:
+            return await self._handle_inner(request, remote_ip, remote_port)
+        finally:
+            await self.engine.rate_limiter.release(remote_ip)
+
+    async def _handle_inner(
+        self, request: web.Request, remote_ip: str, remote_port: int
+    ) -> web.StreamResponse:
         user_agent = request.headers.get("User-Agent", "")
         path = request.path_qs or "/"
         method = request.method
 
-        # Body (for POST detection). Cap read to 16KB.
+        # Header sanitization — reject obviously abusive header counts/sizes
+        # before we allocate any session state.
+        header_check = self.engine.sanitizer.check_http_headers(request.headers)
+        if not header_check.ok:
+            await self.log_sanitizer_event(
+                remote_ip, remote_port, header_check.reason
+            )
+            return web.Response(
+                text="Bad Request",
+                status=400,
+                headers={"Server": self.server_header, "Content-Type": "text/plain"},
+            )
+
+        # Body read bounded by the sanitizer's configured maximum. Reading
+        # one extra byte lets us reliably detect oversized payloads rather
+        # than silently truncating.
         body_text = ""
         if method in {"POST", "PUT", "PATCH"}:
+            limit = self.engine.sanitizer.http_body_max
             try:
-                body_bytes = await request.content.read(16 * 1024)
-                body_text = body_bytes.decode("utf-8", errors="replace")
+                body_bytes = await request.content.read(limit + 1)
             except Exception:  # noqa: BLE001
-                body_text = ""
+                body_bytes = b""
+            body_check = self.engine.sanitizer.check_http_body(body_bytes)
+            if not body_check.ok:
+                await self.log_sanitizer_event(
+                    remote_ip, remote_port, body_check.reason, body_check.offending_hex
+                )
+                return web.Response(
+                    text="Payload Too Large",
+                    status=413,
+                    headers={"Server": self.server_header, "Content-Type": "text/plain"},
+                )
+            body_text = body_bytes.decode("utf-8", errors="replace")
 
         geo = await self.resolve_geo(remote_ip)
         personality = self.engine.personalities.for_country(geo["country_code"])

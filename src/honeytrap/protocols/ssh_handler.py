@@ -153,6 +153,21 @@ class SSHHandler(ProtocolHandler):
         """Fake interactive shell for authenticated sessions."""
         peer = process.get_extra_info("peername") or ("", 0)
         ip, port = peer[0], peer[1]
+
+        # The SSH layer already completed the transport handshake, but
+        # the shell is the expensive surface — run the rate-limit /
+        # guardian check before we commit any shell state.
+        allowed, decision, _reason = await self.check_connection_allowed(ip)
+        if not allowed:
+            await self.log_rate_limit_event(ip, port, decision)
+            await self.apply_tarpit(decision)
+            try:
+                process.exit(1)
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        await self.engine.rate_limiter.acquire(ip)
+
         geo = await self.resolve_geo(ip)
         personality = self.engine.personalities.for_country(geo["country_code"])
         session = self.engine.sessions.create(ip, port, "ssh", self.bound_port)
@@ -161,18 +176,28 @@ class SSHHandler(ProtocolHandler):
         session.asn = geo.get("asn", "")
 
         prompt = "root@server:~# "
+        idle_timeout = self.idle_timeout()
         try:
             process.stdout.write(f"{personality.welcome_banner}\n\n".encode())
             process.stdout.write(b"Last login: Sun Apr 19 12:34:56 2026 from 192.168.1.1\n")
             process.stdout.write(prompt.encode())
             while True:
                 try:
-                    line = await asyncio.wait_for(process.stdin.readline(), timeout=180)
+                    line = await asyncio.wait_for(
+                        process.stdin.readline(), timeout=idle_timeout
+                    )
                 except asyncio.TimeoutError:
+                    await self.log_timeout_event(ip, port, idle_timeout)
                     break
                 if not line:
                     break
                 command = line.rstrip("\n").rstrip("\r")
+                sanitizer_result = self.engine.sanitizer.check_command(command)
+                if not sanitizer_result.ok:
+                    await self.log_sanitizer_event(
+                        ip, port, sanitizer_result.reason, sanitizer_result.offending_hex
+                    )
+                    break
                 session.record_command(command)
                 await self.emit(
                     Event(
@@ -217,6 +242,7 @@ class SSHHandler(ProtocolHandler):
             except Exception:  # noqa: BLE001
                 pass
             self.engine.sessions.close(session.session_id)
+            await self.engine.rate_limiter.release(ip)
             await self.emit(
                 Event(
                     protocol="ssh",
