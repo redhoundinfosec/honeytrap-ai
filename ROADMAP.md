@@ -39,7 +39,7 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] Combined `full_enterprise` profile running HTTP + SSH + FTP + SMTP + MySQL in one process
 - [ ] Full impacket-backed SMB share server
 - [ ] POP3 / IMAP handlers (placeholders in `profiles/mail_server.yaml`)
-- [ ] Optional Textual-based interactive dashboard with filters
+- [x] Optional Textual-based interactive dashboard with filters (Cycle 5, 2026-04-21)
 - [ ] GitHub community templates, PyPI release
 - [ ] Docs site (mkdocs)
 

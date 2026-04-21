@@ -347,3 +347,57 @@ be exported to PDF for stakeholder briefings and incident documentation.
 - Modified: ``tests/test_reporting.py``
 - Modified: ``pyproject.toml`` (``matplotlib`` added, new ``[pdf]`` extra)
 - Modified: ``ROADMAP.md`` (Phase 7 added and marked complete)
+
+---
+
+## Cycle 5 — Textual TUI Dashboard (2026-04-21)
+
+Introduced a full Textual-based terminal UI that coexists with the legacy
+Rich Live dashboard. Users can now choose their flavor at launch time via a
+new ``--dashboard-mode`` flag (``textual`` | ``rich`` | ``none``).
+
+**Textual app highlights**
+
+- Six live panels: header/status bar, active connections table, event log,
+  combined stats/ATT&CK/IOC intel panel, resource-guardian panel, and a
+  scrolling activity log plus footer shortcuts.
+- Keyboard bindings: ``q`` quit, ``f`` cycle protocol filter, ``s``/``/``
+  open substring search, ``r`` trigger reports, ``p`` pause/resume ingestion,
+  ``tab``/``shift+tab`` focus cycling, ``enter`` on a connection row opens a
+  modal with full session detail, ``escape`` dismisses the modal.
+- Session detail modal shows metadata, event list, mapped ATT&CK techniques,
+  extracted IOCs, and a hex dump of the most recent payload.
+- Handles empty state, narrow terminals (<80 cols), and high-throughput
+  bursts via a 10fps refresh throttle.
+- Lazy import: ``cli.py`` only touches the Textual classes when the user
+  actually picks ``textual`` mode. ``none`` mode doesn't import Textual at
+  all.
+
+**Shared event source abstraction**
+
+- New ``DashboardEventSource`` Protocol and ``EngineDashboardSource`` adapter
+  let both the Rich and Textual UIs consume the same event bus without
+  duplicating engine-access logic.
+
+**Test impact**
+
+- Added ``tests/ui/test_dashboard_tui.py`` with 18 tests driven by Textual's
+  ``App.run_test()`` harness (mount, panels, event updates, session
+  add/remove, filter cycle, search, pause, modal open/close, ATT&CK + IOC
+  rendering, clean quit, report callback, narrow-terminal warning,
+  high-throughput burst, full filter cycle, Protocol surface, subprocess
+  assertion that ``--dashboard-mode none`` never imports Textual, and an
+  integration test that ``--dashboard-mode rich`` routes to the legacy
+  Rich dashboard).
+- Full suite: 161 tests passing (up from 143).
+
+**Files changed**
+
+- Added: ``src/honeytrap/ui/dashboard_tui.py``
+- Added: ``tests/ui/__init__.py``, ``tests/ui/test_dashboard_tui.py``
+- Modified: ``src/honeytrap/ui/__init__.py`` (lazy ``load_textual_app``)
+- Modified: ``src/honeytrap/cli.py`` (``--dashboard-mode`` flag,
+  ``_resolve_dashboard_mode``, ``_run_textual_dashboard``,
+  ``_run_rich_dashboard``)
+- Modified: ``README.md`` (new flag, keyboard shortcuts)
+- Modified: ``ROADMAP.md`` (Textual dashboard checkbox ticked)

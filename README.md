@@ -91,6 +91,32 @@ honeytrap
   [Q]uit  [R]eport  [P]ause  [F]ilter  [E]xport
 ```
 
+### Dashboard modes
+
+Choose a dashboard flavor with ``--dashboard-mode``:
+
+| Mode     | Description                                                                              |
+| -------- | ---------------------------------------------------------------------------------------- |
+| ``textual`` | Full-screen Textual TUI with filter, search, pause, session-detail modal (default). |
+| ``rich``    | Legacy Rich Live dashboard (single scrolling pane).                                 |
+| ``none``    | Headless — no UI, just listeners and logs.                                          |
+
+If ``textual`` is selected and the dependency is not installed, the CLI
+falls back to ``rich`` with a warning.
+
+### Textual TUI keyboard shortcuts
+
+| Key       | Action                                                   |
+| --------- | -------------------------------------------------------- |
+| ``q``     | Quit                                                     |
+| ``f``     | Cycle event-log filter (All / HTTP / SSH / FTP / SMB / Telnet / SMTP / MySQL) |
+| ``s`` or ``/`` | Open substring search across the event log          |
+| ``r``     | Generate a report (terminal + HTML) and show toast       |
+| ``p``     | Pause / resume live updates (honeypot keeps running)     |
+| ``tab`` / ``shift+tab`` | Cycle focus between panels                 |
+| ``enter`` | Open session detail modal on the selected connection     |
+| ``escape``| Dismiss the session detail modal or hide the search bar  |
+
 ---
 
 ## 📦 Installation

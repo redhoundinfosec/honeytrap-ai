@@ -69,6 +69,15 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--config", help="Path to an alternate honeytrap.yaml file.")
     parser.add_argument("--no-dashboard", action="store_true", help="Disable the live dashboard.")
     parser.add_argument(
+        "--dashboard-mode",
+        choices=["textual", "rich", "none"],
+        default=None,
+        help=(
+            "Dashboard flavor. 'textual' (default if available) launches the full TUI; "
+            "'rich' uses the legacy Rich Live dashboard; 'none' is headless."
+        ),
+    )
+    parser.add_argument(
         "--profile",
         help="Profile to load (bundled name or path). Skips the interactive menu if given.",
     )
@@ -186,7 +195,78 @@ def _apply_ai_shortcut(cfg: Config, value: str) -> None:
         cfg.ai.endpoint = "http://localhost:11434/v1"
 
 
-async def _run_engine(cfg: Config, profile_name: str, use_dashboard: bool) -> None:
+def _resolve_dashboard_mode(requested: str | None) -> str:
+    """Decide which dashboard flavor to launch.
+
+    Args:
+        requested: The explicit CLI value (``textual`` / ``rich`` / ``none``)
+            or ``None`` when the user did not pass ``--dashboard-mode``.
+
+    Returns:
+        One of ``"textual"``, ``"rich"`` or ``"none"``. Defaults to
+        ``"textual"`` when Textual is importable, otherwise ``"rich"``.
+    """
+    if requested in ("textual", "rich", "none"):
+        if requested == "textual":
+            try:
+                import textual  # noqa: F401
+            except ImportError:
+                logger.warning("textual not available, falling back to rich dashboard")
+                return "rich"
+        return requested
+    try:
+        import textual  # noqa: F401
+
+        return "textual"
+    except ImportError:
+        return "rich"
+
+
+async def _run_textual_dashboard(engine: Engine, shutdown_event: asyncio.Event) -> None:
+    """Launch the Textual TUI bound to the given engine."""
+    import contextlib
+
+    from honeytrap.ui import load_textual_app
+
+    tui_cls, source_cls, _ = load_textual_app()
+    source = source_cls(engine)
+    app = tui_cls(source)
+    app_task = asyncio.create_task(app.run_async())
+    wait_task = asyncio.create_task(shutdown_event.wait())
+    try:
+        await asyncio.wait([app_task, wait_task], return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        with contextlib.suppress(Exception):  # noqa: BLE001
+            app.exit()
+        for t in (app_task, wait_task):
+            t.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):  # noqa: BLE001
+                await t
+
+
+async def _run_rich_dashboard(engine: Engine, shutdown_event: asyncio.Event) -> None:
+    """Launch the legacy Rich Live dashboard bound to the given engine."""
+    import contextlib
+
+    dashboard = Dashboard(engine)
+    dashboard_task = asyncio.create_task(dashboard.run())
+    wait_task = asyncio.create_task(shutdown_event.wait())
+    try:
+        await asyncio.wait([dashboard_task, wait_task], return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        dashboard.stop()
+        for t in (dashboard_task, wait_task):
+            t.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):  # noqa: BLE001
+                await t
+
+
+async def _run_engine(
+    cfg: Config,
+    profile_name: str,
+    use_dashboard: bool,
+    dashboard_mode: str | None = None,
+) -> None:
     """Start the engine (and optional dashboard) and wait for shutdown."""
     console = Console()
     try:
@@ -196,15 +276,12 @@ async def _run_engine(cfg: Config, profile_name: str, use_dashboard: bool) -> No
         return
 
     engine = Engine(cfg, profile)
-    dashboard: Dashboard | None = None
 
     shutdown_event = asyncio.Event()
 
     def _signal_handler(*_args: object) -> None:
         if not shutdown_event.is_set():
             shutdown_event.set()
-            if dashboard is not None:
-                dashboard.stop()
 
     for sig_name in ("SIGINT", "SIGTERM"):
         if hasattr(signal, sig_name):
@@ -226,7 +303,9 @@ async def _run_engine(cfg: Config, profile_name: str, use_dashboard: bool) -> No
     console.print()
     console.print(f"[green]✓[/green] Profile loaded: [bold]{profile.name}[/bold]")
     for proto, requested, bound in engine.active_ports:
-        console.print(f"[green]✓[/green] {proto.upper()} listener on :{bound} (requested :{requested})")
+        console.print(
+            f"[green]✓[/green] {proto.upper()} listener on :{bound} (requested :{requested})"
+        )
     for proto, port, reason in engine.skipped_ports:
         console.print(f"[yellow]![/yellow] Skipped {proto.upper()}:{port} — {reason}")
     console.print(f"[green]✓[/green] Log directory: {cfg.general.log_directory}")
@@ -235,21 +314,15 @@ async def _run_engine(cfg: Config, profile_name: str, use_dashboard: bool) -> No
     else:
         console.print("[green]✓[/green] AI backend: rule-based only")
 
+    mode = _resolve_dashboard_mode(dashboard_mode)
+    if not use_dashboard or not cfg.general.dashboard:
+        mode = "none"
+
     try:
-        if use_dashboard and cfg.general.dashboard:
-            dashboard = Dashboard(engine)
-            dashboard_task = asyncio.create_task(dashboard.run())
-            wait_task = asyncio.create_task(shutdown_event.wait())
-            done, _ = await asyncio.wait(
-                [dashboard_task, wait_task], return_when=asyncio.FIRST_COMPLETED
-            )
-            dashboard.stop()
-            for t in (dashboard_task, wait_task):
-                t.cancel()
-                try:
-                    await t
-                except (asyncio.CancelledError, Exception):  # noqa: BLE001
-                    pass
+        if mode == "textual":
+            await _run_textual_dashboard(engine, shutdown_event)
+        elif mode == "rich":
+            await _run_rich_dashboard(engine, shutdown_event)
         else:
             console.print("[dim]Running headless. Press Ctrl+C to stop.[/dim]")
             await shutdown_event.wait()
@@ -286,8 +359,7 @@ def _cmd_report(args: argparse.Namespace, cfg: Config) -> int:
             except PDFExportError as exc:
                 console.print(f"[red]PDF export failed: {exc}[/red]")
                 console.print(
-                    "[yellow]Install the optional PDF extra: "
-                    "pip install honeytrap-ai[pdf][/yellow]"
+                    "[yellow]Install the optional PDF extra: pip install honeytrap-ai[pdf][/yellow]"
                 )
                 return 1
         else:
@@ -351,8 +423,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.no_dashboard:
         cfg.general.dashboard = False
 
+    dashboard_mode = args.dashboard_mode
+    if args.no_dashboard:
+        dashboard_mode = "none"
+
     try:
-        asyncio.run(_run_engine(cfg, profile_name, cfg.general.dashboard))
+        asyncio.run(
+            _run_engine(
+                cfg,
+                profile_name,
+                cfg.general.dashboard,
+                dashboard_mode=dashboard_mode,
+            )
+        )
     except KeyboardInterrupt:
         pass
     except Exception as exc:  # noqa: BLE001
