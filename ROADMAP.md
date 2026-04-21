@@ -91,3 +91,15 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] `/healthz`, `/readyz`, `/metrics` HTTP endpoints (stdlib, no new deps)
 - [x] Prometheus counters for connections, events, rate-limited, resource rejections
 - [x] GitHub Actions workflow: hadolint, helm lint, kubeconform, buildx push to GHCR
+
+## Phase 9 — Alerting (Cycle 7, 2026-04-21)
+
+- [x] Pluggable alert channel abstraction with per-channel rate limiting
+- [x] Slack, Discord, Microsoft Teams, generic webhook, and SMTP email channels
+- [x] HMAC-SHA256 signing for generic webhook payloads
+- [x] Rules engine: first-seen IP, brute force, default creds, shell exec, file transfer, malicious IOC, critical ATT&CK techniques, multi-technique escalation
+- [x] Severity thresholds (INFO / LOW / MEDIUM / HIGH / CRITICAL) enforced at manager and channel layers
+- [x] Env-var-only secrets via `*_env` YAML keys
+- [x] CLI flags: `--alerts-enabled` / `--no-alerts`, `--alerts-min-severity`, `--alerts-dry-run`
+- [x] Textual TUI toast for severity ≥ HIGH
+- [x] Prometheus counters: `honeytrap_alerts_sent_total`, `honeytrap_alerts_dropped_total`

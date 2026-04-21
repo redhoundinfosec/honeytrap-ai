@@ -68,3 +68,39 @@ guardian:
   memory_limit_mb: 256
   check_interval_seconds: 5.0
   log_dir_warn_mb: 2048
+
+# Alerting subsystem — forwards notifications to Slack, Discord, Teams,
+# generic webhooks, and email. All secrets must come from env vars via
+# the *_env keys below; never commit raw tokens here.
+alerts:
+  enabled: false
+  min_severity: MEDIUM          # global floor: INFO | LOW | MEDIUM | HIGH | CRITICAL
+  dry_run: false                # true = format but do not deliver
+  channels:
+    # - type: slack
+    #   webhook_url_env: HONEYTRAP_SLACK_WEBHOOK_URL
+    #   min_severity: HIGH
+    #   rate_limit_per_minute: 20
+    # - type: discord
+    #   webhook_url_env: HONEYTRAP_DISCORD_WEBHOOK_URL
+    #   min_severity: HIGH
+    #   rate_limit_per_minute: 20
+    # - type: teams
+    #   webhook_url_env: HONEYTRAP_TEAMS_WEBHOOK_URL
+    #   min_severity: HIGH
+    #   rate_limit_per_minute: 20
+    # - type: webhook
+    #   url_env: HONEYTRAP_WEBHOOK_URL
+    #   secret_env: HONEYTRAP_WEBHOOK_SECRET
+    #   min_severity: MEDIUM
+    #   rate_limit_per_minute: 30
+    # - type: email
+    #   smtp_host: smtp.example.com
+    #   smtp_port: 587
+    #   starttls: true
+    #   username_env: HONEYTRAP_SMTP_USER
+    #   password_env: HONEYTRAP_SMTP_PASS
+    #   from_addr: honeytrap@example.com
+    #   to_addrs: [soc@example.com]
+    #   min_severity: HIGH
+    #   rate_limit_per_minute: 5

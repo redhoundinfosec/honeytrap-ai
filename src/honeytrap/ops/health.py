@@ -349,4 +349,14 @@ def build_default_registry() -> MetricsRegistry:
         "Uptime of the health server in seconds.",
         "gauge",
     )
+    registry.register(
+        "honeytrap_alerts_sent_total",
+        "Total alerts successfully sent, by channel and severity.",
+        "counter",
+    )
+    registry.register(
+        "honeytrap_alerts_dropped_total",
+        "Total alerts dropped, by reason (rate-limited, channel-error, below-min-severity).",
+        "counter",
+    )
     return registry

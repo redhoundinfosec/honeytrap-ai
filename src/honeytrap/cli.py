@@ -102,6 +102,32 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Do not start the health/metrics HTTP server.",
     )
+    alerts_group = parser.add_mutually_exclusive_group()
+    alerts_group.add_argument(
+        "--alerts-enabled",
+        dest="alerts_enabled",
+        action="store_true",
+        default=None,
+        help="Enable the alerts subsystem (overrides the profile).",
+    )
+    alerts_group.add_argument(
+        "--no-alerts",
+        dest="alerts_enabled",
+        action="store_false",
+        default=None,
+        help="Disable the alerts subsystem (overrides the profile).",
+    )
+    parser.add_argument(
+        "--alerts-min-severity",
+        choices=["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"],
+        default=None,
+        help="Global minimum severity for alert dispatch.",
+    )
+    parser.add_argument(
+        "--alerts-dry-run",
+        action="store_true",
+        help="Run alert rules and formatting but do not actually send to channels.",
+    )
 
     sub = parser.add_subparsers(dest="command")
 
@@ -247,6 +273,16 @@ async def _run_textual_dashboard(engine: Engine, shutdown_event: asyncio.Event) 
     tui_cls, source_cls, _ = load_textual_app()
     source = source_cls(engine)
     app = tui_cls(source)
+
+    def _tui_notify(alert: object) -> None:
+        title = getattr(alert, "title", "Alert")
+        severity = getattr(getattr(alert, "severity", None), "name", "HIGH")
+        notify = getattr(app, "notify", None)
+        if callable(notify):
+            with contextlib.suppress(Exception):  # noqa: BLE001
+                notify(f"[{severity}] {title}", title="HoneyTrap alert", severity="error")
+
+    engine.set_tui_notify_hook(_tui_notify)
     app_task = asyncio.create_task(app.run_async())
     wait_task = asyncio.create_task(shutdown_event.wait())
     try:
@@ -477,6 +513,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.no_dashboard:
         cfg.general.dashboard = False
+
+    if args.alerts_enabled is not None:
+        cfg.alerts.enabled = bool(args.alerts_enabled)
+    if args.alerts_min_severity is not None:
+        cfg.alerts.min_severity = args.alerts_min_severity
+    if args.alerts_dry_run:
+        cfg.alerts.dry_run = True
 
     dashboard_mode = args.dashboard_mode
     if args.no_dashboard:

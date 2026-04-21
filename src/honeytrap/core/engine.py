@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 from honeytrap.ai.geo_personality import GeoPersonalitySelector
 from honeytrap.ai.responder import AIResponder
 from honeytrap.ai.rule_engine import RuleEngine
+from honeytrap.alerts import AlertManager, parse_alerts_config
 from honeytrap.core.config import Config
 from honeytrap.core.guardian import ResourceGuardian
 from honeytrap.core.profile import DeviceProfile, ServiceSpec
@@ -122,6 +123,54 @@ class Engine:
         self._stopping = asyncio.Event()
         self._event_subscribers: list[asyncio.Queue[Event]] = []
 
+        # Alerting subsystem (may stay disabled; parsing is cheap).
+        self.alerts_config = parse_alerts_config(config.alerts.as_dict())
+        if self.alerts_config.warnings:
+            for warning in self.alerts_config.warnings:
+                logger.warning("alerts config: %s", warning)
+        self.alert_manager: AlertManager | None = None
+        if self.alerts_config.enabled:
+            self.alert_manager = AlertManager(
+                channels=list(self.alerts_config.channels),
+                min_severity=self.alerts_config.min_severity,
+                dry_run=self.alerts_config.dry_run,
+                metric_sent=lambda channel, labels: self.metrics.inc_counter(
+                    "honeytrap_alerts_sent_total",
+                    labels={"channel": channel, **(labels or {})},
+                ),
+                metric_dropped=lambda reason, labels: self.metrics.inc_counter(
+                    "honeytrap_alerts_dropped_total",
+                    labels={"reason": reason, **(labels or {})},
+                ),
+                tui_notify=self._tui_notify,
+            )
+        self._tui_notify_hook: Any = None
+        self._alert_queue: asyncio.Queue[Event] | None = None
+
+    # ------------------------------------------------------------------
+    # Alerting hooks
+    # ------------------------------------------------------------------
+    def set_tui_notify_hook(self, hook: Any) -> None:
+        """Install a coroutine (``async def hook(alert)``) used for toasts.
+
+        The hook is invoked by the alert manager for alerts at severity
+        HIGH or higher so the Textual dashboard can surface them as
+        in-app notifications.
+        """
+        self._tui_notify_hook = hook
+
+    async def _tui_notify(self, alert: Any) -> None:
+        """Internal wrapper that forwards alerts to the registered hook."""
+        hook = self._tui_notify_hook
+        if hook is None:
+            return
+        try:
+            result = hook(alert)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("TUI notify hook raised: %s", exc)
+
     # ------------------------------------------------------------------
     # Setup
     # ------------------------------------------------------------------
@@ -216,6 +265,13 @@ class Engine:
 
         # Start background log management + periodic reports
         self._listeners.append(asyncio.create_task(self.log_manager.monitor()))
+
+        # Wire the alert manager to the event bus if enabled.
+        if self.alert_manager is not None:
+            self._alert_queue = self.subscribe()
+            self._listeners.append(
+                asyncio.create_task(self.alert_manager.run_subscriber(self._alert_queue))
+            )
         # Guardian runs as its own long-lived task; it self-registers so we
         # don't need to add it to _listeners.
         await self.guardian.start()
@@ -238,6 +294,11 @@ class Engine:
         """Shut down every listener and flush buffers."""
         logger.info("Stopping HoneyTrap engine")
         self._stopping.set()
+        if self.alert_manager is not None:
+            try:
+                await self.alert_manager.shutdown()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("AlertManager shutdown failed: %s", exc)
         await self.guardian.stop()
         for handler in self.handlers:
             try:

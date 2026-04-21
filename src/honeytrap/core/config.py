@@ -125,6 +125,30 @@ class GuardianConfig:
 
 
 @dataclass
+class AlertsConfigRaw:
+    """Raw representation of the ``alerts`` YAML block.
+
+    The actual channels are built lazily by
+    :func:`honeytrap.alerts.parse_alerts_config` so no alerts code is
+    imported by the config loader unless the feature is needed.
+    """
+
+    enabled: bool = False
+    min_severity: str = "MEDIUM"
+    dry_run: bool = False
+    channels: list[dict[str, Any]] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a dict suitable for :func:`parse_alerts_config`."""
+        return {
+            "enabled": self.enabled,
+            "min_severity": self.min_severity,
+            "dry_run": self.dry_run,
+            "channels": list(self.channels),
+        }
+
+
+@dataclass
 class Config:
     """Root configuration object."""
 
@@ -136,6 +160,7 @@ class Config:
     timeouts: TimeoutsConfig = field(default_factory=TimeoutsConfig)
     sanitizer: SanitizerConfig = field(default_factory=SanitizerConfig)
     guardian: GuardianConfig = field(default_factory=GuardianConfig)
+    alerts: AlertsConfigRaw = field(default_factory=AlertsConfigRaw)
 
     def to_dict(self) -> dict[str, Any]:
         """Return the config as a plain dictionary."""
@@ -145,6 +170,16 @@ class Config:
 def _apply_dict(cfg: Config, data: dict[str, Any]) -> Config:
     """Merge a dict into ``cfg`` without failing on unknown keys."""
     for section_name, section_data in data.items():
+        if section_name == "alerts" and isinstance(section_data, dict):
+            cfg.alerts.enabled = bool(section_data.get("enabled", cfg.alerts.enabled))
+            cfg.alerts.min_severity = str(
+                section_data.get("min_severity", cfg.alerts.min_severity)
+            )
+            cfg.alerts.dry_run = bool(section_data.get("dry_run", cfg.alerts.dry_run))
+            channels = section_data.get("channels")
+            if isinstance(channels, list):
+                cfg.alerts.channels = [c for c in channels if isinstance(c, dict)]
+            continue
         if not isinstance(section_data, dict):
             continue
         section = getattr(cfg, section_name, None)

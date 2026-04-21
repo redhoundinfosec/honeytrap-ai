@@ -268,6 +268,105 @@ The unit is hardened with `ProtectSystem=strict`,
 
 ---
 
+## 🚨 Alerts
+
+HoneyTrap AI can push structured alerts to operations tools when
+interesting events happen (brute-force bursts, default-credential
+hits, shell execution, known-bad IOCs, critical ATT&CK techniques,
+…). Alerts are pluggable, rate-limited per channel, and honor a
+minimum-severity threshold.
+
+### Supported channels
+
+| Channel           | Transport          | Notes                                                    |
+|-------------------|--------------------|----------------------------------------------------------|
+| Slack             | Incoming webhook   | Rich blocks + severity-colored attachment                |
+| Discord           | Incoming webhook   | Embed with severity color                                |
+| Microsoft Teams   | Incoming webhook   | MessageCard JSON                                         |
+| Generic webhook   | HTTPS POST         | Optional HMAC-SHA256 `X-HoneyTrap-Signature` header      |
+| Email (SMTP)      | SMTP + STARTTLS    | Multipart text + HTML, configurable from/to addresses    |
+
+### Configuration
+
+Enable alerts in your `honeytrap.yaml` or profile file. Secrets
+should come from environment variables via `*_env` keys so they're
+never committed:
+
+```yaml
+alerts:
+  enabled: true
+  min_severity: medium        # info|low|medium|high|critical
+  dry_run: false              # log payloads instead of sending
+  channels:
+    - type: slack
+      name: soc-slack
+      webhook_url_env: HONEYTRAP_SLACK_WEBHOOK_URL
+      min_severity: high
+      rate_limit_per_minute: 20
+    - type: webhook
+      name: siem
+      url_env: HONEYTRAP_WEBHOOK_URL
+      secret_env: HONEYTRAP_WEBHOOK_SECRET
+      headers: { X-Env: prod }
+    - type: email
+      smtp_host: smtp.example.com
+      smtp_port: 587
+      from_addr: honeytrap@example.com
+      to_addrs: [soc@example.com]
+      username_env: HONEYTRAP_SMTP_USER
+      password_env: HONEYTRAP_SMTP_PASS
+      starttls: true
+```
+
+### Environment variables
+
+Copy `.env.example` to `.env` and fill in the endpoints you actually
+use:
+
+```
+HONEYTRAP_SLACK_WEBHOOK_URL=
+HONEYTRAP_DISCORD_WEBHOOK_URL=
+HONEYTRAP_TEAMS_WEBHOOK_URL=
+HONEYTRAP_WEBHOOK_URL=
+HONEYTRAP_WEBHOOK_SECRET=
+HONEYTRAP_SMTP_USER=
+HONEYTRAP_SMTP_PASS=
+```
+
+### CLI flags
+
+```
+--alerts-enabled / --no-alerts      override alerts.enabled
+--alerts-min-severity {info,low,medium,high,critical}
+--alerts-dry-run                    log payloads instead of POSTing
+```
+
+### Security
+
+- Channel secrets are read **only** from environment variables.
+  Missing env vars result in a warning and the channel being skipped
+  — never a crash.
+- The generic webhook channel signs the JSON body with HMAC-SHA256
+  when a `secret_env` is provided; verify
+  `X-HoneyTrap-Signature: sha256=<hex>` on the receiver.
+- HTTP delivery retries 5xx / network errors with exponential
+  backoff (0.5s, 1s, 2s) and honors `Retry-After`. 4xx responses
+  are **not** retried.
+- Per-channel token-bucket rate limiting (default 20/min) prevents a
+  noisy event from flooding a channel.
+- Deliveries run concurrently; one failing channel never blocks the
+  others.
+
+### Metrics
+
+Two Prometheus counters are exposed on `/metrics`:
+
+- `honeytrap_alerts_sent_total{channel,severity}`
+- `honeytrap_alerts_dropped_total{reason}` — `reason` is
+  `rate-limited`, `below-min-severity`, `no-channels`, or `error`.
+
+---
+
 ## 🧪 Development
 
 ```bash
