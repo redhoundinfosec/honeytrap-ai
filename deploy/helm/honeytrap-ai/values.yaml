@@ -1,0 +1,119 @@
+# Default values for honeytrap-ai.
+
+image:
+  repository: ghcr.io/redhoundinfosec/honeytrap-ai
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Honeypots are typically a singleton per node. Scaling horizontally is
+# possible but requires shared storage to aggregate reports.
+replicaCount: 1
+
+profile: web_server
+dashboardMode: none
+
+extraArgs: []
+# Additional args appended to the container command. Example:
+# extraArgs:
+#   - "--verbose"
+
+env: []
+# - name: HONEYTRAP_AI_KEY
+#   valueFrom:
+#     secretKeyRef:
+#       name: honeytrap-secrets
+#       key: openai
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+podSecurityContext:
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+    - name: ssh
+      port: 22
+      targetPort: 22
+      protocol: TCP
+    - name: ftp
+      port: 21
+      targetPort: 21
+      protocol: TCP
+    - name: smtp
+      port: 25
+      targetPort: 25
+      protocol: TCP
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+      protocol: TCP
+    - name: health
+      port: 9200
+      targetPort: 9200
+      protocol: TCP
+
+healthProbes:
+  enabled: true
+  liveness:
+    path: /healthz
+    port: 9200
+    initialDelaySeconds: 10
+    periodSeconds: 30
+  readiness:
+    path: /readyz
+    port: 9200
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  mountPath: /app/data
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+networkPolicy:
+  enabled: false
+  # Optional allow-list for which namespaces can reach the honeypot.
+  allowedIngressNamespaces: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}

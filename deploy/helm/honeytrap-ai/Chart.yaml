@@ -1,0 +1,16 @@
+apiVersion: v2
+name: honeytrap-ai
+description: AI-powered cross-platform honeypot framework.
+type: application
+version: 0.1.0
+appVersion: "latest"
+home: https://github.com/redhoundinfosec/honeytrap-ai
+sources:
+  - https://github.com/redhoundinfosec/honeytrap-ai
+maintainers:
+  - name: jph4cks
+    email: japd06@gmail.com
+keywords:
+  - honeypot
+  - security
+  - deception

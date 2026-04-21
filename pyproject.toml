@@ -91,6 +91,10 @@ honeytrap = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = [
+    "slow: marks slow tests (deselect with -m 'not slow')",
+    "docker: marks tests requiring Docker (deselect with -m 'not docker')",
+]
 
 [tool.ruff]
 line-length = 100

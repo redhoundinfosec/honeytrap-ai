@@ -1,0 +1,72 @@
+# HoneyTrap AI — Docker Compose stack.
+#
+# Default stack: a single honeytrap service. Start it with:
+#
+#   docker compose -f deploy/docker-compose.yml up -d
+#
+# Optional: enable the "with-prometheus" profile to also spin up a
+# Prometheus container configured to scrape /metrics:
+#
+#   docker compose -f deploy/docker-compose.yml --profile with-prometheus up -d
+#
+# Ports are bound to 127.0.0.1 on the host by default so the honeypot is
+# only reachable locally until you deliberately expose it.
+
+services:
+  honeytrap:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: ghcr.io/redhoundinfosec/honeytrap-ai:latest
+    container_name: honeytrap-ai
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      HONEYTRAP_PROFILE: "${HONEYTRAP_PROFILE:-web_server}"
+      HONEYTRAP_DASHBOARD_MODE: "none"
+    command: >
+      --profile ${HONEYTRAP_PROFILE:-web_server}
+      --dashboard-mode none
+      --health-host 0.0.0.0
+    volumes:
+      - ./data:/app/data
+      - ./profiles:/app/profiles:ro
+    ports:
+      - "127.0.0.1:8080:80"
+      - "127.0.0.1:2222:22"
+      - "127.0.0.1:2121:21"
+      - "127.0.0.1:2525:25"
+      - "127.0.0.1:4450:445"
+      - "127.0.0.1:33060:3306"
+      - "127.0.0.1:9200:9200"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9200/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: honeytrap-prometheus
+    profiles: ["with-prometheus"]
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      - honeytrap
+
+volumes:
+  prometheus_data: {}

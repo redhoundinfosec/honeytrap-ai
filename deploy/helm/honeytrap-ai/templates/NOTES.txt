@@ -1,0 +1,22 @@
+HoneyTrap AI is being deployed.
+
+1. Confirm the pod is running:
+
+     kubectl --namespace {{ .Release.Namespace }} get pods \
+       -l app.kubernetes.io/instance={{ .Release.Name }}
+
+2. Port-forward the health endpoint to verify:
+
+     kubectl --namespace {{ .Release.Namespace }} port-forward \
+       svc/{{ include "honeytrap-ai.fullname" . }} 9200:9200
+
+   Then open http://127.0.0.1:9200/healthz
+
+3. The attacker-facing ports exposed by this release:
+
+     {{- range .Values.service.ports }}
+     - {{ .name }}: {{ .port }}/{{ .protocol | default "TCP" }}
+     {{- end }}
+
+Remember: honeypots belong on isolated networks or dedicated VLANs.
+See SECURITY.md in the upstream repo for responsible-deployment guidance.

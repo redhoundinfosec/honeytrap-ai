@@ -79,3 +79,15 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] WeasyPrint-backed PDF export (optional `[pdf]` extra)
 - [x] `honeytrap report --format terminal|html|pdf` CLI switch
 - [x] Analyzer snapshots include `events_by_hour`, `hourly_heatmap`, `time_range`
+
+## Phase 8 — Deployment & Operations (Cycle 6, 2026-04-21)
+
+- [x] Multi-stage Dockerfile (`python:3.12-slim`, non-root UID 10001, curl HEALTHCHECK)
+- [x] `.dockerignore` excluding tests/build artifacts
+- [x] `deploy/docker-compose.yml` with read-only root, cap drop, optional `with-prometheus` profile
+- [x] Helm chart under `deploy/helm/honeytrap-ai/` (PVC, NetworkPolicy, ServiceMonitor, probes)
+- [x] Plain Kubernetes manifests + `kustomization.yaml`
+- [x] Hardened `honeytrap.service` systemd unit with syscall filter and idempotent `install.sh`
+- [x] `/healthz`, `/readyz`, `/metrics` HTTP endpoints (stdlib, no new deps)
+- [x] Prometheus counters for connections, events, rate-limited, resource rejections
+- [x] GitHub Actions workflow: hadolint, helm lint, kubeconform, buildx push to GHCR

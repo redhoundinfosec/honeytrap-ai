@@ -86,6 +86,22 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=["off", "openai", "ollama", "custom"],
         help="AI backend; skips the interactive AI menu if given.",
     )
+    parser.add_argument(
+        "--health-host",
+        default="127.0.0.1",
+        help="Bind address for the /healthz, /readyz, /metrics server (default 127.0.0.1).",
+    )
+    parser.add_argument(
+        "--health-port",
+        type=int,
+        default=9200,
+        help="Port for the health/metrics HTTP server (default 9200).",
+    )
+    parser.add_argument(
+        "--health-disabled",
+        action="store_true",
+        help="Do not start the health/metrics HTTP server.",
+    )
 
     sub = parser.add_subparsers(dest="command")
 
@@ -266,6 +282,10 @@ async def _run_engine(
     profile_name: str,
     use_dashboard: bool,
     dashboard_mode: str | None = None,
+    *,
+    health_enabled: bool = True,
+    health_host: str = "127.0.0.1",
+    health_port: int = 9200,
 ) -> None:
     """Start the engine (and optional dashboard) and wait for shutdown."""
     console = Console()
@@ -276,6 +296,34 @@ async def _run_engine(
         return
 
     engine = Engine(cfg, profile)
+    health_server = None
+    if health_enabled:
+        from honeytrap.ops.health import HealthServer
+
+        def _guardian_ready() -> tuple[bool, str]:
+            stats = engine.guardian._stats  # noqa: SLF001 — cheap snapshot
+            if stats.should_refuse:
+                return False, stats.refusal_reason or "resource pressure"
+            return True, ""
+
+        def _active_sessions() -> int:
+            return len(getattr(engine.sessions, "_sessions", {}))
+
+        health_server = HealthServer(
+            engine.metrics,
+            host=health_host,
+            port=health_port,
+            guardian_ready=_guardian_ready,
+            active_sessions=_active_sessions,
+        )
+        try:
+            health_server.start()
+        except OSError as exc:
+            console.print(
+                f"[yellow]![/yellow] Health server failed to bind "
+                f"{health_host}:{health_port}: {exc}"
+            )
+            health_server = None
 
     shutdown_event = asyncio.Event()
 
@@ -313,6 +361,11 @@ async def _run_engine(
         console.print(f"[green]✓[/green] AI backend: {cfg.ai.provider} ({cfg.ai.model})")
     else:
         console.print("[green]✓[/green] AI backend: rule-based only")
+    if health_server is not None:
+        console.print(
+            f"[green]✓[/green] Health/metrics on http://{health_server.bound_host}:"
+            f"{health_server.bound_port}/healthz"
+        )
 
     mode = _resolve_dashboard_mode(dashboard_mode)
     if not use_dashboard or not cfg.general.dashboard:
@@ -331,6 +384,8 @@ async def _run_engine(
     finally:
         console.print()
         console.print("[yellow]Shutting down…[/yellow]")
+        if health_server is not None:
+            health_server.stop()
         await engine.stop()
         console.print("[green]Goodbye.[/green]")
 
@@ -434,6 +489,9 @@ def main(argv: list[str] | None = None) -> int:
                 profile_name,
                 cfg.general.dashboard,
                 dashboard_mode=dashboard_mode,
+                health_enabled=not args.health_disabled,
+                health_host=args.health_host,
+                health_port=args.health_port,
             )
         )
     except KeyboardInterrupt:

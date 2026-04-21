@@ -30,6 +30,7 @@ from honeytrap.intel.ioc_extractor import IOCExtractor
 from honeytrap.logging.database import AttackDatabase
 from honeytrap.logging.manager import LogManager
 from honeytrap.logging.models import Event
+from honeytrap.ops.health import MetricsRegistry, build_default_registry
 
 if TYPE_CHECKING:
     from honeytrap.protocols.base import ProtocolHandler
@@ -108,6 +109,10 @@ class Engine:
         # Threat intelligence layer — shared across every event.
         self.attack_mapper = ATTACKMapper()
         self.ioc_extractor = IOCExtractor()
+
+        # Metrics registry is always live, regardless of whether a health
+        # server is attached. Handlers poke counters through emit_event.
+        self.metrics: MetricsRegistry = build_default_registry()
 
         self.handlers: list[ProtocolHandler] = []
         self.active_ports: list[tuple[str, int, int]] = []
@@ -205,7 +210,9 @@ class Engine:
                 logger.warning("Skipping %s:%d — %s", handler.service.protocol, port, exc)
             except Exception as exc:  # noqa: BLE001 — never crash
                 self.skipped_ports.append((handler.service.protocol, port, str(exc)))
-                logger.exception("Unexpected failure starting %s: %s", handler.service.protocol, exc)
+                logger.exception(
+                    "Unexpected failure starting %s: %s", handler.service.protocol, exc
+                )
 
         # Start background log management + periodic reports
         self._listeners.append(asyncio.create_task(self.log_manager.monitor()))
@@ -328,6 +335,26 @@ class Engine:
                 self.database.record_ioc(ioc)
             except Exception as exc:  # noqa: BLE001
                 logger.debug("Failed to record IOC: %s", exc)
+
+        try:
+            self.metrics.inc_counter(
+                "honeytrap_events_total",
+                labels={
+                    "protocol": event.protocol or "unknown",
+                    "event_type": event.event_type or "unknown",
+                },
+            )
+            if event.event_type in {"connect", "connection", "session_start"}:
+                self.metrics.inc_counter(
+                    "honeytrap_connections_total",
+                    labels={"protocol": event.protocol or "unknown"},
+                )
+            if event.event_type == "rate_limited":
+                self.metrics.inc_counter("honeytrap_rate_limited_total")
+            if event.event_type == "resource_rejected":
+                self.metrics.inc_counter("honeytrap_resource_rejections_total")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Metrics update failed: %s", exc)
 
         for queue in list(self._event_subscribers):
             try:

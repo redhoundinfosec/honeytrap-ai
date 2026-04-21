@@ -196,6 +196,78 @@ Reports include: executive summary, top attackers, geographic distribution, cred
 
 ---
 
+## 📦 Deployment
+
+HoneyTrap AI ships with Docker, Docker Compose, Helm, raw Kubernetes, and
+systemd recipes under `deploy/`. All targets expose a small health plane
+(`/healthz`, `/readyz`, `/metrics`) that defaults to the loopback
+interface — override `--health-host` deliberately if you want it
+reachable outside the pod or container.
+
+### Health and metrics endpoints
+
+| Path       | Purpose                                                                 |
+| ---------- | ----------------------------------------------------------------------- |
+| `/healthz` | Liveness. Always 200 while the process is up. JSON payload.             |
+| `/readyz`  | Readiness. 200 while the resource guardian is not refusing connections. |
+| `/metrics` | Prometheus text exposition of connection/event counters and gauges.    |
+
+CLI flags: `--health-host` (default `127.0.0.1`), `--health-port` (default
+`9200`), `--health-disabled` to turn the server off entirely.
+
+### Docker
+
+```bash
+docker build -t honeytrap-ai:local .
+docker run --rm -p 127.0.0.1:9200:9200 -p 127.0.0.1:8080:80 \
+    honeytrap-ai:local --profile web_server --dashboard-mode none --health-host 0.0.0.0
+```
+
+The runtime image is built from `python:3.12-slim` with a non-root
+`honeytrap` (UID 10001) user and a baked-in HEALTHCHECK that hits
+`/healthz`. Expect a final image around 240-280 MB.
+
+### Docker Compose
+
+```bash
+docker compose -f deploy/docker-compose.yml up -d
+# Optional: scrape /metrics with a bundled Prometheus container
+docker compose -f deploy/docker-compose.yml --profile with-prometheus up -d
+```
+
+All honeypot ports are published on `127.0.0.1` by default so nothing is
+exposed externally until you choose to bind to `0.0.0.0`.
+
+### Kubernetes (Helm)
+
+```bash
+helm install ht ./deploy/helm/honeytrap-ai -f my-values.yaml
+```
+
+Ships with a `ServiceMonitor` for Prometheus Operator and an opt-in
+`NetworkPolicy`. Pods run with `runAsNonRoot`, a read-only root
+filesystem, and `capabilities.drop: [ALL]`.
+
+### Kubernetes (raw manifests)
+
+```bash
+kubectl apply -k deploy/k8s
+```
+
+### systemd
+
+```bash
+sudo ./deploy/systemd/install.sh
+sudo systemctl status honeytrap.service
+```
+
+The unit is hardened with `ProtectSystem=strict`,
+`MemoryDenyWriteExecute=yes`, a syscall filter, and narrow
+`ReadWritePaths`. Binding to privileged ports requires uncommenting
+`AmbientCapabilities=CAP_NET_BIND_SERVICE`.
+
+---
+
 ## 🧪 Development
 
 ```bash

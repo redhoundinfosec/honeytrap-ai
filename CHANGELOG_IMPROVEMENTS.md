@@ -401,3 +401,130 @@ new ``--dashboard-mode`` flag (``textual`` | ``rich`` | ``none``).
   ``_run_rich_dashboard``)
 - Modified: ``README.md`` (new flag, keyboard shortcuts)
 - Modified: ``ROADMAP.md`` (Textual dashboard checkbox ticked)
+
+---
+
+## Cycle 6 — Docker, Compose, Helm, K8s, systemd Packaging + Health/Metrics (2026-04-21)
+
+**Title**: Docker, Compose, Helm, K8s, and systemd deployment packaging with
+a first-class health and metrics plane.
+
+Introduced production deployment targets for every common environment and a
+tiny stdlib HTTP server exposing ``/healthz``, ``/readyz`` and ``/metrics``.
+The Prometheus formatter is hand-rolled (no ``prometheus_client`` dep) and
+all metrics are pre-registered so scrapers always see the full set, even
+before the first event fires.
+
+**Health / metrics server**
+
+- New ``src/honeytrap/ops/health.py``: thread-backed ``http.server`` with a
+  ``MetricsRegistry`` (thread-safe counters + gauges) and a minimal
+  Prometheus text formatter.
+- Defaults to ``127.0.0.1:9200`` so it stays off the attacker-facing
+  network until the operator opts in to a non-loopback bind host.
+- Exposed metrics: ``honeytrap_connections_total``,
+  ``honeytrap_events_total``, ``honeytrap_active_sessions``,
+  ``honeytrap_rate_limited_total``,
+  ``honeytrap_resource_rejections_total``, ``honeytrap_uptime_seconds``.
+- CLI flags: ``--health-host``, ``--health-port``, ``--health-disabled``.
+- Engine wiring: ``emit_event`` increments the appropriate counters based
+  on ``event_type`` / ``protocol``; active session gauge is refreshed on
+  every ``/metrics`` scrape.
+
+**Docker**
+
+- Multi-stage ``Dockerfile`` (``python:3.12-slim`` builder + runtime),
+  non-root ``honeytrap`` user (UID 10001), curl-based HEALTHCHECK,
+  ``ENTRYPOINT ["honeytrap"]``.
+- ``.dockerignore`` trims tests, caches, docs, ``deploy/helm``, ``deploy/k8s``,
+  ``deploy/systemd`` out of the build context.
+
+**Compose**
+
+- ``deploy/docker-compose.yml``: read-only root FS, ``cap_drop: [ALL]``,
+  tmpfs ``/tmp``, loopback-bound published ports, curl HEALTHCHECK.
+- Optional ``with-prometheus`` profile launches a Prometheus sidecar
+  scraping ``/metrics`` via ``deploy/prometheus.yml``.
+
+**Helm chart** (``deploy/helm/honeytrap-ai/``)
+
+- ``Chart.yaml``, ``values.yaml`` with opinionated hardened defaults
+  (``runAsNonRoot``, ``readOnlyRootFilesystem``,
+  ``capabilities.drop: [ALL]``, ``seccompProfile: RuntimeDefault``).
+- Templates: ``deployment``, ``service``, ``pvc``, ``serviceaccount``,
+  ``networkpolicy`` (opt-in), ``servicemonitor`` (opt-in), ``NOTES.txt``,
+  ``_helpers.tpl``.
+- ``README.md`` inside the chart.
+
+**Raw Kubernetes manifests** (``deploy/k8s/``)
+
+- ``namespace``, ``deployment``, ``service``, ``pvc``, ``networkpolicy``,
+  ``servicemonitor``, ``kustomization.yaml``.
+
+**systemd**
+
+- ``deploy/systemd/honeytrap.service`` with ``NoNewPrivileges``,
+  ``ProtectSystem=strict``, ``MemoryDenyWriteExecute``,
+  ``SystemCallFilter=@system-service``, narrow ``ReadWritePaths``.
+- ``deploy/systemd/install.sh`` — idempotent user / venv / unit installer.
+
+**CI**
+
+- New ``.github/workflows/docker.yml``: hadolint, helm lint, kubeconform,
+  and buildx push to ``ghcr.io/redhoundinfosec/honeytrap-ai`` with
+  ``:latest``, ``:sha`` and ``:tag`` on tags; uses GHA layer cache.
+
+**Tests**
+
+- Added ``tests/ops/test_health.py`` with 12 tests:
+  ``/healthz`` JSON shape, ``/readyz`` happy and 503 paths,
+  ``/metrics`` Prometheus format, counter increments across scrapes,
+  configurable port, loopback default, clean shutdown, CLI flag parsing
+  (``--health-disabled``, ``--health-port``), zero-counter emission, and
+  monotonic uptime gauge.
+- Added ``tests/ops/test_docker_smoke.py`` — opt-in build + ``--help``
+  smoke test, skipped when Docker is unavailable (marked ``slow`` +
+  ``docker`` in ``pyproject.toml``).
+- Suite total: 173 passing (161 baseline + 12 new), 1 skipped
+  (Docker smoke).
+
+**Docs**
+
+- ``README.md``: new "Deployment" section covering Docker, Compose,
+  Helm, raw K8s, systemd, plus the health / metrics endpoint reference
+  and CLI flag table.
+- ``deploy/README.md`` — index into the deploy/ directory.
+- ``ROADMAP.md`` — Phase 8 added and marked complete.
+
+**Files added**
+
+- ``src/honeytrap/ops/__init__.py``, ``src/honeytrap/ops/health.py``
+- ``tests/ops/__init__.py``, ``tests/ops/test_health.py``,
+  ``tests/ops/test_docker_smoke.py``
+- ``Dockerfile``, ``.dockerignore``
+- ``deploy/README.md``, ``deploy/docker-compose.yml``,
+  ``deploy/prometheus.yml``
+- ``deploy/helm/honeytrap-ai/Chart.yaml``,
+  ``deploy/helm/honeytrap-ai/values.yaml``,
+  ``deploy/helm/honeytrap-ai/README.md``
+- ``deploy/helm/honeytrap-ai/templates/_helpers.tpl``,
+  ``deployment.yaml``, ``service.yaml``, ``pvc.yaml``,
+  ``serviceaccount.yaml``, ``networkpolicy.yaml``,
+  ``servicemonitor.yaml``, ``NOTES.txt``
+- ``deploy/k8s/namespace.yaml``, ``deployment.yaml``, ``service.yaml``,
+  ``pvc.yaml``, ``networkpolicy.yaml``, ``servicemonitor.yaml``,
+  ``kustomization.yaml``
+- ``deploy/systemd/honeytrap.service``, ``deploy/systemd/install.sh``
+- ``.github/workflows/docker.yml``
+
+**Files modified**
+
+- ``src/honeytrap/core/engine.py`` — metrics registry + emit_event
+  counter updates.
+- ``src/honeytrap/cli.py`` — ``--health-host/--health-port/--health-disabled``
+  flags, health server start/stop in ``_run_engine``.
+- ``pyproject.toml`` — ``slow`` and ``docker`` pytest markers.
+- ``README.md`` — deployment section.
+- ``ROADMAP.md`` — Phase 8 entry.
+
+**Test counts**: 161 -> 173 passing (+12), 1 skipped.

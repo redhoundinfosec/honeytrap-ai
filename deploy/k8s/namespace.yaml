@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: honeytrap
+  labels:
+    app.kubernetes.io/name: honeytrap-ai
+    pod-security.kubernetes.io/enforce: restricted
