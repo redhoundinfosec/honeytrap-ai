@@ -367,6 +367,67 @@ Two Prometheus counters are exposed on `/metrics`:
 
 ---
 
+## 🕵 TLS Fingerprinting (JA3 / JA4)
+
+HoneyTrap identifies attacker tooling from the first TLS ClientHello,
+**before** any handshake completes. The pipeline:
+
+```
++-------------+   peek 16 KB   +----------------+
+| TCP listener|--------------->| tls_peek helper|
++-------------+                +-------+--------+
+                                       |
+                                       v
+                             +---------+----------+
+                             | ClientHello parser |
+                             +------+------+------+
+                                    |      |
+                                    v      v
+                                   JA3    JA4
+                                    |      |
+                                    v      v
+                           +----------------------+
+                           | FingerprintDatabase  |   <- bundled YAML
+                           +----------+-----------+     (33+ entries)
+                                      |
+                                      v
+          ATT&CK mapping - alerts - IOC SNI - Prom metrics - reports
+```
+
+Supported fingerprints today (**33 bundled**): curl, Python requests /
+urllib3 / aiohttp, Go net/http, OpenSSL, nmap, masscan, zgrab2,
+Firefox, Chrome, Safari, wget, Java HttpClient, Node.js, Cobalt
+Strike Beacon, Metasploit Meterpreter, sqlmap, Burp Suite, Empire,
+Havoc, Sliver, Merlin, Mirai/Mozi variants, and more.
+
+### CLI flags
+
+- `--tls-fingerprint-db PATH` — layer a custom YAML on top of the
+  bundled database.
+- `--disable-tls-fingerprinting` — turn the subsystem off entirely.
+
+### YAML entry format
+
+```yaml
+fingerprints:
+  - name: "Cobalt Strike Malleable C2 (default)"
+    category: malware          # scanner | library | browser |
+                               # malware | pentest_tool | bot | unknown
+    confidence: high           # high | medium | low
+    ja3: "72a589da586844d7f0818ce684948eea"
+    ja4: "t13d1516h2_8daaf6152771_e5627efa2ab1"   # optional
+    references:
+      - "https://www.cobaltstrike.com/"
+```
+
+### Prometheus metric
+
+- `honeytrap_tls_fingerprint_total{ja3_hash,category,name}` — bounded
+  to the top 100 JA3s; overflow collapses to
+  `ja3_hash="other",name="other"`.
+
+---
+
 ## 🧪 Development
 
 ```bash

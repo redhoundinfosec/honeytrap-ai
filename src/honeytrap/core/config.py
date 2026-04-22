@@ -149,6 +149,14 @@ class AlertsConfigRaw:
 
 
 @dataclass
+class TLSFingerprintConfig:
+    """Toggles for the JA3/JA4 TLS fingerprinting subsystem."""
+
+    enabled: bool = True
+    database_path: str | None = None
+
+
+@dataclass
 class Config:
     """Root configuration object."""
 
@@ -161,6 +169,7 @@ class Config:
     sanitizer: SanitizerConfig = field(default_factory=SanitizerConfig)
     guardian: GuardianConfig = field(default_factory=GuardianConfig)
     alerts: AlertsConfigRaw = field(default_factory=AlertsConfigRaw)
+    tls_fingerprint: TLSFingerprintConfig = field(default_factory=TLSFingerprintConfig)
 
     def to_dict(self) -> dict[str, Any]:
         """Return the config as a plain dictionary."""

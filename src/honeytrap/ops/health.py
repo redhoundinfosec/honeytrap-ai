@@ -359,4 +359,9 @@ def build_default_registry() -> MetricsRegistry:
         "Total alerts dropped, by reason (rate-limited, channel-error, below-min-severity).",
         "counter",
     )
+    registry.register(
+        "honeytrap_tls_fingerprint_total",
+        "Total TLS fingerprints observed, by JA3 hash and attributed category/name.",
+        "counter",
+    )
     return registry

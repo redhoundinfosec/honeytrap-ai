@@ -6,7 +6,7 @@ call it when you need a snapshot.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from honeytrap.logging.database import AttackDatabase
@@ -35,6 +35,7 @@ class AnalysisSnapshot:
     events_by_hour: list[dict[str, Any]]
     hourly_heatmap: list[list[int]]
     time_range: tuple[str | None, str | None]
+    top_tls_fingerprints: list[dict[str, Any]] = field(default_factory=list)
 
 
 class Analyzer:

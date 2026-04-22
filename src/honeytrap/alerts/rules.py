@@ -374,6 +374,40 @@ def rule_critical_techniques(event: dict[str, Any], ctx: AlertRuleContext) -> li
     return alerts
 
 
+def rule_tls_fingerprint(event: dict[str, Any], ctx: AlertRuleContext) -> list[Alert]:
+    """Emit HIGH/MEDIUM alerts for known-malicious or scanner TLS fingerprints."""
+    tls = (event.get("data") or {}).get("tls_fingerprint") or {}
+    matches = tls.get("matches") or []
+    if not matches:
+        return []
+    alerts: list[Alert] = []
+    for match in matches:
+        category = str(match.get("category") or "").lower()
+        name = str(match.get("name") or "unknown")
+        ja3 = tls.get("ja3") or ""
+        if category in {"malware", "bot"}:
+            severity = AlertSeverity.HIGH
+        elif category in {"scanner", "pentest_tool"}:
+            severity = AlertSeverity.MEDIUM
+        else:
+            continue
+        alerts.append(
+            Alert(
+                title=f"TLS fingerprint match: {name}",
+                summary=(
+                    f"JA3 {ja3} on {_event_field(event, 'protocol') or 'unknown'} "
+                    f"matched {name} ({category})"
+                ),
+                severity=severity,
+                attck_techniques=_collect_techniques(event),
+                iocs=_collect_iocs(event),
+                tags={"tls-fingerprint", f"tls-{category}"},
+                **_base_alert(event),
+            )
+        )
+    return alerts
+
+
 DEFAULT_RULES: tuple[RuleFn, ...] = (
     rule_first_seen_ip,
     rule_brute_force,
@@ -382,6 +416,7 @@ DEFAULT_RULES: tuple[RuleFn, ...] = (
     rule_file_transfer,
     rule_malicious_ioc,
     rule_critical_techniques,
+    rule_tls_fingerprint,
 )
 
 

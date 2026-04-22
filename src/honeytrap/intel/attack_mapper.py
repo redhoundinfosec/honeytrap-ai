@@ -481,4 +481,15 @@ class ATTACKMapper:
         if event_type in _PORT_SCAN_EVENT_TYPES:
             add("T1046", confidence=0.75, matched_on=event_type)
 
+        # --------- TLS fingerprint attribution ---------
+        tls_fp = data.get("tls_fingerprint") or {}
+        for match in tls_fp.get("matches") or []:
+            category = str(match.get("category") or "").lower()
+            if category in {"scanner", "pentest_tool"}:
+                add(
+                    "T1595.002",
+                    confidence=0.9,
+                    matched_on=f"ja3-{category}:{match.get('name', '')}",
+                )
+
         return mappings

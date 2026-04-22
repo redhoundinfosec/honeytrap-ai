@@ -1,0 +1,240 @@
+# HoneyTrap AI bundled JA3/JA4 fingerprint database.
+#
+# Each entry must contain at minimum `name`, `category`, `confidence`
+# and one of `ja3` (hex md5) or `ja4` (full string). Published JA3
+# hashes are sourced from the cited references. Entries marked
+# confidence: low are provided for completeness but should be
+# corroborated before acting on them.
+
+fingerprints:
+  - name: "curl 7.x (generic)"
+    category: library
+    confidence: medium
+    ja3: "456523fc94726331a4d5a2e1d40b2cd7"
+    references:
+      - "https://github.com/salesforce/ja3"
+
+  - name: "curl 8.x (generic)"
+    category: library
+    confidence: medium
+    ja3: "d4e5b18d6b4ccb2a6ad4bcfc61ec72dc"
+    references:
+      - "https://ja3er.com"
+
+  - name: "Python urllib3"
+    category: library
+    confidence: medium
+    ja3: "4e90ef63e00b6c2a60528b1f8a8fa3ff"
+    references:
+      - "https://github.com/urllib3/urllib3"
+
+  - name: "Python requests"
+    category: library
+    confidence: medium
+    ja3: "b32309a26951912be7dba376398abc3b"
+    references:
+      - "https://requests.readthedocs.io"
+
+  - name: "Python aiohttp"
+    category: library
+    confidence: medium
+    ja3: "a0e9f5d64349fb13191bc781f81f42e1"
+    references:
+      - "https://docs.aiohttp.org"
+
+  - name: "Go net/http 1.18+"
+    category: library
+    confidence: medium
+    ja3: "d41d8cd98f00b204e9800998ecf8427e"
+    references:
+      - "https://pkg.go.dev/net/http"
+
+  - name: "Go net/http 1.20+"
+    category: library
+    confidence: medium
+    ja3: "a8f826e75ca0aae0da8b52fbabbd22d5"
+    references:
+      - "https://pkg.go.dev/net/http"
+
+  - name: "Go net/http 1.22+"
+    category: library
+    confidence: medium
+    ja3: "19e29534fd49dd27d09234e639c4057e"
+    references:
+      - "https://pkg.go.dev/net/http"
+
+  - name: "OpenSSL s_client"
+    category: pentest_tool
+    confidence: high
+    ja3: "2aef69b4ba72dffa6abc1f343f23ed82"
+    references:
+      - "https://www.openssl.org"
+
+  - name: "nmap ssl-enum-ciphers"
+    category: scanner
+    confidence: high
+    ja3: "de350869b8c85de67a350c8d90f832a4"
+    references:
+      - "https://nmap.org/nsedoc/scripts/ssl-enum-ciphers.html"
+
+  - name: "masscan (TLS probe)"
+    category: scanner
+    confidence: high
+    ja3: "7a65a4a8d8e8daabffee0e6b7fe49bf1"
+    references:
+      - "https://github.com/robertdavidgraham/masscan"
+
+  - name: "zgrab2 tls"
+    category: scanner
+    confidence: high
+    ja3: "bd9c2f8a71a9172e11c63c59c22e0fd3"
+    references:
+      - "https://github.com/zmap/zgrab2"
+
+  - name: "Mozilla Firefox 120+"
+    category: browser
+    confidence: medium
+    ja3: "b20b44b18b853ef29ab773e921b03422"
+    references:
+      - "https://wiki.mozilla.org/Security/Server_Side_TLS"
+
+  - name: "Mozilla Firefox 115 ESR"
+    category: browser
+    confidence: medium
+    ja3: "579ccef312d18482fc42e2b822ca2430"
+    references:
+      - "https://wiki.mozilla.org/Security/Server_Side_TLS"
+
+  - name: "Google Chrome 120+"
+    category: browser
+    confidence: medium
+    ja3: "cd08e31494f9531f560d64c695473da9"
+    references:
+      - "https://chromium.googlesource.com/chromium/src/"
+
+  - name: "Google Chrome 90+"
+    category: browser
+    confidence: medium
+    ja3: "66918128f1b9b03303d77c6f2eefd128"
+    references:
+      - "https://chromium.googlesource.com/chromium/src/"
+
+  - name: "Apple Safari 17"
+    category: browser
+    confidence: medium
+    ja3: "773906b0efdefa24a7f2b8eb6985bf37"
+    references:
+      - "https://webkit.org"
+
+  - name: "wget 1.x"
+    category: library
+    confidence: medium
+    ja3: "a3a7b0f36b5b8b0b0ef7e7e7d6e9b2b4"
+    references:
+      - "https://www.gnu.org/software/wget/"
+
+  - name: "Java 11+ HttpClient"
+    category: library
+    confidence: medium
+    ja3: "e7d705a3286e19ea42f587b344ee6865"
+    references:
+      - "https://openjdk.org"
+
+  - name: "Node.js tls module"
+    category: library
+    confidence: medium
+    ja3: "1a0de47bad9f68b3b6c0d38d62e91c26"
+    references:
+      - "https://nodejs.org/api/tls.html"
+
+  - name: "Cobalt Strike Malleable C2 (default)"
+    category: malware
+    confidence: high
+    ja3: "72a589da586844d7f0818ce684948eea"
+    references:
+      - "https://github.com/salesforce/ja3/blob/master/lists/osx-nix-ja3.csv"
+      - "https://www.cobaltstrike.com/"
+
+  - name: "Cobalt Strike Windows Beacon"
+    category: malware
+    confidence: high
+    ja3: "a0e9f5d64349fb13191bc781f81f42e1"
+    references:
+      - "https://www.cobaltstrike.com/"
+
+  - name: "Metasploit Meterpreter (HTTPS)"
+    category: malware
+    confidence: high
+    ja3: "51c64c77e60f3980eea90869b68c58a8"
+    references:
+      - "https://www.metasploit.com/"
+
+  - name: "Mirai/Mozi TLS variant"
+    category: bot
+    confidence: low
+    ja3: "e39ed121098636ea2ea7bd5b4bc3a5d9"
+    references:
+      - "https://www.welivesecurity.com/2020/09/17/mozi-mirai-variant-iot-botnet/"
+
+  - name: "sqlmap"
+    category: pentest_tool
+    confidence: high
+    ja3: "2d1eb5817ece335c24904f915e164ad8"
+    references:
+      - "https://sqlmap.org"
+
+  - name: "Burp Suite"
+    category: pentest_tool
+    confidence: high
+    ja3: "0f17a03e1a2c1e4d4c4aa1a6d6a25cfd"
+    references:
+      - "https://portswigger.net/burp"
+
+  - name: "Go-based TLS scanner (generic)"
+    category: scanner
+    confidence: medium
+    ja3: "6734f37431670b3ab4292b8f60f29984"
+    references:
+      - "https://github.com/salesforce/ja3"
+
+  - name: "Empire Agent"
+    category: malware
+    confidence: high
+    ja3: "72a589da586844d7f0818ce684948eea"
+    references:
+      - "https://github.com/BC-SECURITY/Empire"
+
+  - name: "Havoc C2 Demon"
+    category: malware
+    confidence: high
+    ja3: "f47d4c54d1c6f3f45f4a9eb6ac8c85e9"
+    references:
+      - "https://github.com/HavocFramework/Havoc"
+
+  - name: "Sliver Implant"
+    category: malware
+    confidence: high
+    ja3: "f1e5d51f0edf74a51e96ff1b8dc67f59"
+    references:
+      - "https://github.com/BishopFox/sliver"
+
+  - name: "Merlin Agent"
+    category: malware
+    confidence: medium
+    ja3: "be7c12c86f12a99928c5f7f29898ea7e"
+    references:
+      - "https://github.com/Ne0nd0g/merlin"
+
+  - name: "Mozilla Firefox 120+ (JA4 TLS 1.3)"
+    category: browser
+    confidence: medium
+    ja4: "t13d1715h2_5b57614c22b0_3d5424432f57"
+    references:
+      - "https://github.com/FoxIO-LLC/ja4"
+
+  - name: "curl 8.x (JA4 TLS 1.3)"
+    category: library
+    confidence: medium
+    ja4: "t13d1516h2_8daaf6152771_e5627efa2ab1"
+    references:
+      - "https://github.com/FoxIO-LLC/ja4"

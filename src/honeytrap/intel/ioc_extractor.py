@@ -174,6 +174,25 @@ class IOCExtractor:
                     session_id=session_id,
                 )))
 
+        # TLS SNI as a domain IOC (attacker tooling often leaks
+        # target hostnames in ClientHello even when a handshake
+        # is never completed).
+        tls_fp = data.get("tls_fingerprint") if isinstance(data, dict) else None
+        if isinstance(tls_fp, dict):
+            sni = tls_fp.get("sni")
+            if sni:
+                sni_lower = str(sni).split(":")[0].lower()
+                if sni_lower and sni_lower not in _IGNORED_DOMAINS and not _IPV4_RE.fullmatch(
+                    sni_lower
+                ):
+                    results.append(self._add(IOC(
+                        type="domain",
+                        value=sni_lower,
+                        context=f"{context_proto}:tls_sni",
+                        session_id=session_id,
+                        confidence=0.9,
+                    )))
+
         return [ioc for ioc in results if ioc is not None]
 
     def extract_from_text(

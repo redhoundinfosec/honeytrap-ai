@@ -656,3 +656,78 @@ with isolation between channels.
 - ``ROADMAP.md`` — Phase 9 entry.
 
 **Test counts**: 173 -> 198 passing (+25), 1 skipped.
+
+---
+
+## Cycle 8 — JA3 / JA4 TLS Client Fingerprinting (2026-04-22)
+
+**Summary**
+
+HoneyTrap can now identify attacker tooling from a single TLS
+ClientHello, **before any handshake completes**. A zero-dependency
+parser lifts every JA3/JA4-relevant field off raw bytes; two hashers
+produce standard fingerprints per the salesforce/ja3 and FoxIO JA4
+specs; a YAML-backed database ships 33 seeded entries covering
+scanners (nmap, masscan, zgrab2), libraries (curl, requests, Go
+net/http), browsers (Firefox, Chrome, Safari), pentest tools (Burp,
+sqlmap, OpenSSL), and malware families (Cobalt Strike, Metasploit,
+Sliver, Havoc, Empire, Merlin, Mirai/Mozi).
+
+Matches are fed into the existing session event pipeline: ATT&CK
+mapping (scanner/pentest_tool -> T1595.002), IOC extractor (SNI ->
+domain IOC), the alerts rule engine (malware/bot -> HIGH,
+scanner/pentest_tool -> MEDIUM), and a cardinality-bounded Prometheus
+counter `honeytrap_tls_fingerprint_total{ja3_hash,category,name}`.
+
+**Files added**
+
+- ``src/honeytrap/intel/tls/__init__.py``
+- ``src/honeytrap/intel/tls/clienthello.py`` — record + ClientHello
+  parser, fails closed on malformed input
+- ``src/honeytrap/intel/tls/ja3.py``
+- ``src/honeytrap/intel/tls/ja4.py``
+- ``src/honeytrap/intel/tls/database.py`` — YAML loader, schema
+  validation, JA3/JA4 lookup
+- ``src/honeytrap/intel/tls/fingerprinter.py`` — orchestrator with
+  LRU cache
+- ``src/honeytrap/intel/tls/metrics.py`` — top-100 bounded emitter
+- ``src/honeytrap/intel/tls/certs.py`` — in-memory self-signed cert
+- ``src/honeytrap/intel/tls/fingerprints.yaml`` — 33 seeded entries
+- ``src/honeytrap/intel/tls/_selfsigned/cert.pem`` + ``key.pem``
+- ``src/honeytrap/protocols/tls_peek.py`` — async 16 KB peek helper
+- ``scripts/gen_selfsigned.py`` — regenerates the pre-baked cert
+- ``tests/intel/tls/conftest.py``
+- ``tests/intel/tls/test_clienthello.py`` (11 tests)
+- ``tests/intel/tls/test_ja3.py`` (4 tests)
+- ``tests/intel/tls/test_ja4.py`` (9 tests)
+- ``tests/intel/tls/test_database.py`` (7 tests)
+- ``tests/intel/tls/test_fingerprinter.py`` (4 tests)
+- ``tests/protocols/test_tls_peek.py`` (5 tests)
+- ``tests/alerts/test_tls_rules.py`` (4 tests)
+- ``tests/fixtures/tls/*.bin`` — 9 deterministic ClientHello fixtures
+- ``tests/fixtures/tls/_build_fixtures.py`` — regenerates fixtures
+
+**Files modified**
+
+- ``src/honeytrap/intel/attack_mapper.py`` — TLS match ->
+  T1595.002 mapping.
+- ``src/honeytrap/intel/ioc_extractor.py`` — SNI promoted to
+  domain IOC.
+- ``src/honeytrap/alerts/rules.py`` — ``rule_tls_fingerprint``
+  rule added to ``DEFAULT_RULES``.
+- ``src/honeytrap/core/config.py`` — ``TLSFingerprintConfig``
+  dataclass.
+- ``src/honeytrap/cli.py`` — ``--tls-fingerprint-db`` and
+  ``--disable-tls-fingerprinting`` flags.
+- ``src/honeytrap/ops/health.py`` — registered
+  ``honeytrap_tls_fingerprint_total``.
+- ``src/honeytrap/reporting/analyzer.py`` — optional
+  ``top_tls_fingerprints`` field on the snapshot.
+- ``pyproject.toml`` — package-data entries for the bundled YAML
+  and self-signed PEM.
+- ``README.md`` — new "TLS Fingerprinting" section with ASCII
+  architecture diagram, CLI flags, YAML entry example, and the
+  Prometheus metric.
+- ``ROADMAP.md`` — Phase 10 marked complete.
+
+**Test counts**: 198 -> 242 passing (+44), 1 skipped.

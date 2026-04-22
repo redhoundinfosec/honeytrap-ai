@@ -129,6 +129,20 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Run alert rules and formatting but do not actually send to channels.",
     )
 
+    parser.add_argument(
+        "--tls-fingerprint-db",
+        dest="tls_fingerprint_db",
+        default=None,
+        help="Override the bundled JA3/JA4 fingerprint YAML with a custom path.",
+    )
+    parser.add_argument(
+        "--disable-tls-fingerprinting",
+        dest="tls_fingerprint_enabled",
+        action="store_false",
+        default=None,
+        help="Disable JA3/JA4 TLS client fingerprinting (enabled by default).",
+    )
+
     sub = parser.add_subparsers(dest="command")
 
     report_cmd = sub.add_parser("report", help="Generate an attack report from the database.")
@@ -520,6 +534,11 @@ def main(argv: list[str] | None = None) -> int:
         cfg.alerts.min_severity = args.alerts_min_severity
     if args.alerts_dry_run:
         cfg.alerts.dry_run = True
+
+    if args.tls_fingerprint_enabled is False:
+        cfg.tls_fingerprint.enabled = False
+    if args.tls_fingerprint_db is not None:
+        cfg.tls_fingerprint.database_path = args.tls_fingerprint_db
 
     dashboard_mode = args.dashboard_mode
     if args.no_dashboard:

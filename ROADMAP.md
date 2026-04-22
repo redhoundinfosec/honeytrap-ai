@@ -103,3 +103,18 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] CLI flags: `--alerts-enabled` / `--no-alerts`, `--alerts-min-severity`, `--alerts-dry-run`
 - [x] Textual TUI toast for severity ≥ HIGH
 - [x] Prometheus counters: `honeytrap_alerts_sent_total`, `honeytrap_alerts_dropped_total`
+
+## Phase 10 — TLS Client Fingerprinting (Cycle 8, 2026-04-22)
+
+- [x] Zero-dependency TLS record + ClientHello parser (handles malformed input without raising)
+- [x] JA3 hasher (salesforce/ja3 compatible, MD5 of decimal-encoded fields, GREASE filtered)
+- [x] JA4 hasher (FoxIO spec: `t13d1516h2_…_…` with sha256/12 cipher and ext hashes)
+- [x] YAML-backed `FingerprintDatabase` with 33+ seeded entries covering scanners, libraries, browsers, malware, pentest tools, and bots
+- [x] `TLSFingerprinter` orchestrator with LRU cache and JSON-ready event output
+- [x] `tls_peek` async helper: 16 KB cap, partial-read safe, non-TLS passthrough, timeout-tolerant
+- [x] In-memory self-signed cert via `cryptography` (pre-baked fallback under `_selfsigned/`)
+- [x] Session event enrichment (`tls_fingerprint` block) + SNI promoted to domain IOC
+- [x] ATT&CK mapping: scanner / pentest_tool match -> T1595.002
+- [x] Alert rule: malware/bot -> HIGH, scanner/pentest_tool -> MEDIUM
+- [x] Prometheus counter `honeytrap_tls_fingerprint_total` with bounded cardinality (top 100)
+- [x] CLI flags `--tls-fingerprint-db PATH`, `--disable-tls-fingerprinting`

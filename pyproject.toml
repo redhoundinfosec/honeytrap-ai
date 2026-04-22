@@ -85,6 +85,8 @@ honeytrap = [
     "../../templates/http/*.html",
     "../../templates/ftp/*.txt",
     "reporting/templates/*.html",
+    "intel/tls/*.yaml",
+    "intel/tls/_selfsigned/*.pem",
 ]
 
 [tool.pytest.ini_options]
