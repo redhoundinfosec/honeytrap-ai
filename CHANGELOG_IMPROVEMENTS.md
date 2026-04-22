@@ -731,3 +731,104 @@ counter `honeytrap_tls_fingerprint_total{ja3_hash,category,name}`.
 - ``ROADMAP.md`` — Phase 10 marked complete.
 
 **Test counts**: 198 -> 242 passing (+44), 1 skipped.
+
+---
+
+## Cycle 9 — Session Replay, PCAP-Lite Export & Forensic Timeline (2026-04-22)
+
+**Goal**: capture every byte of every attacker session and let an
+analyst replay, search, and export it in any format that downstream
+tools speak.
+
+**What shipped**
+
+A new ``honeytrap.forensics`` subpackage that records byte-accurate
+inbound/outbound frames for every session through a passive recorder,
+persists them to a pluggable store (newline-delimited gzipped JSONL or
+WAL-mode SQLite), and exposes three orthogonal export pipelines:
+
+- **PCAP-lite** — synthesized TCP/IP framing (3-way handshake, MSS
+  segmentation, FIN/ACK teardown, IPv4 + IPv6, correct one's
+  complement checksums, Ethernet II linktype). Opens cleanly in
+  Wireshark, ``tshark`` and any libpcap-aware tool.
+- **JSONL** — one gzipped file per session containing the metadata
+  open marker, every frame (base64 payload + timestamps), and the
+  meta_close row. Concatenation-safe; multiple sessions stream into a
+  single ``.jsonl.gz``.
+- **Timeline** — chronological reconstruction with classified entries
+  (CONNECT / AUTH_ATTEMPT / COMMAND / FILE_TRANSFER / TLS_HANDSHAKE /
+  PAYLOAD_IN/OUT / DISCONNECT). Renders as plain text, JSON, or a
+  self-contained dark-theme HTML page. Credentials are redacted from
+  the human-readable description by default; the underlying frame
+  payload is preserved for PCAP export.
+
+The recorder enforces a 10 MiB per-session and 1 GiB per-day cap by
+default and switches to *sampling* mode when a cap fires (keeps the
+first 100 + last 100 frames and writes a ``truncated=true`` marker so
+analysts never see silently dropped data). Disk writes are paused on
+``ResourceGuardian`` pressure and resumed automatically.
+
+The TUI session detail modal grew a Replay tab with a frame cursor,
+hex dump of the selected frame, and one-key PCAP/JSONL export
+(``e`` / ``E``). Playback bindings (``space`` / ``left`` / ``right`` /
+``<`` / ``>``) advance through the recorded frames at six selectable
+speeds.
+
+The HTML report grew a ``Forensic Session Replays`` section that links
+to one ``sessions/<id>.html`` page, ``sessions/<id>.pcap``, and
+``sessions/<id>.jsonl.gz`` per recent session.
+
+A new ``honeytrap export {pcap,jsonl,timeline,list}`` subcommand group
+mirrors all of the above for headless workflows.
+
+**Files added**
+
+- ``src/honeytrap/forensics/__init__.py``
+- ``src/honeytrap/forensics/recorder.py`` — frames, stores
+  (JSONL + SQLite), recorder, retention sweep
+- ``src/honeytrap/forensics/pcap.py`` — PCAP-lite writer/reader,
+  TCP/IP synthesis, IPv4 + IPv6
+- ``src/honeytrap/forensics/timeline.py`` — chronological
+  reconstruction with redaction, text/JSON/HTML rendering
+- ``src/honeytrap/forensics/cli.py`` — ``honeytrap export`` parser
+  and dispatcher
+- ``docs/forensics.md`` — operator/analyst guide
+- ``tests/forensics/__init__.py``
+- ``tests/forensics/test_recorder.py`` (10 tests)
+- ``tests/forensics/test_sqlite_store.py`` (5 tests)
+- ``tests/forensics/test_pcap.py`` (9 tests)
+- ``tests/forensics/test_timeline.py`` (9 tests)
+- ``tests/forensics/test_export_cli.py`` (5 tests)
+- ``tests/forensics/test_replay_tui.py`` (6 tests)
+
+**Files modified**
+
+- ``src/honeytrap/core/config.py`` — ``ForensicsConfigRaw``
+  dataclass with ``enabled``, ``store``, ``path``,
+  ``max_session_bytes``, ``max_daily_bytes``, ``retention_days``,
+  ``record_tls_handshake``.
+- ``src/honeytrap/core/engine.py`` — wires the recorder, opens
+  the configured store, schedules a 24-hour retention sweep, and
+  closes the store on shutdown.
+- ``src/honeytrap/cli.py`` — registers the ``export`` subparser
+  group; dispatches to ``run_export`` after profile listing.
+- ``src/honeytrap/ops/health.py`` — registers
+  ``honeytrap_sessions_recorded_total``,
+  ``honeytrap_sessions_truncated_total``,
+  ``honeytrap_session_bytes_total``,
+  ``honeytrap_pcap_exports_total``, and the histogram
+  ``honeytrap_session_duration_seconds`` (with ``_bucket``,
+  ``_count``, ``_sum`` Prometheus exposition).
+- ``src/honeytrap/reporting/generator.py`` —
+  ``render_html_with_sessions`` materializes per-session pages
+  and PCAP/JSONL downloads alongside the main report.
+- ``src/honeytrap/ui/dashboard_tui.py`` — Replay tab,
+  PLAYBACK_SPEEDS, six new key bindings, ``_export_session``.
+- ``README.md`` — new "Forensics & Replay" section.
+- ``ROADMAP.md`` — Cycle 9 checked off.
+
+**Test counts**: 242 -> 286 passing (+44), 1 skipped.
+
+**Zero new runtime dependencies** — the entire subsystem is
+stdlib-only (``gzip``, ``sqlite3``, ``socket``, ``struct``,
+``threading``).

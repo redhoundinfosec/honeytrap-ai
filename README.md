@@ -428,6 +428,73 @@ fingerprints:
 
 ---
 
+## 🎬 Forensics & Replay
+
+Every attacker session is captured byte-for-byte and can be replayed,
+searched, or exported to PCAP for downstream forensic tools. The
+recorder is passive — if disabled or under resource pressure it drops
+frames silently without affecting the engine. See
+[`docs/forensics.md`](docs/forensics.md) for the full operator guide.
+
+```yaml
+forensics:
+  enabled: true
+  store: jsonl                  # jsonl | sqlite
+  path: ./sessions
+  max_session_bytes: 10485760   # 10 MiB per session
+  max_daily_bytes: 1073741824   # 1 GiB per day
+  retention_days: 30
+  record_tls_handshake: true
+```
+
+### Export from the CLI
+
+```bash
+honeytrap export list
+honeytrap export pcap     --session ssh-7c1a8b --out cap.pcap
+honeytrap export jsonl    --session ssh-7c1a8b --out cap.jsonl.gz
+honeytrap export timeline --session ssh-7c1a8b
+honeytrap export pcap     --ip 198.51.100.7 --since 2026-04-22T00:00:00Z --out campaign.pcap
+```
+
+### Replay in the TUI
+
+Open the dashboard, press Enter on a session row, then switch to the
+Replay tab:
+
+| Key     | Action                      |
+|---------|-----------------------------|
+| `space` | Play / pause                |
+| `right` | Step one frame forward      |
+| `left`  | Step one frame back         |
+| `>`     | Increase playback speed     |
+| `<`     | Decrease playback speed     |
+| `e`     | Export session as PCAP      |
+| `E`     | Export session as JSONL     |
+
+Speeds cycle through `0.25x, 0.5x, 1.0x, 2.0x, 4.0x, 8.0x`.
+
+### PCAP-lite
+
+The PCAP writer produces a valid libpcap capture (magic `0xa1b2c3d4`,
+Ethernet linktype `1`) that opens cleanly in Wireshark and `tshark`.
+Because the engine sees application-layer frames, the writer
+synthesizes the missing transport: a SYN / SYN-ACK / ACK handshake,
+MSS-sized TCP segments with monotonic sequence numbers, correct
+one's-complement checksums, IPv4 *and* IPv6, and a FIN / ACK teardown.
+IDS rules and content-carving work as on a real capture; RTT or
+retransmit analysis does not.
+
+### Prometheus metrics
+
+- `honeytrap_sessions_recorded_total{protocol}`
+- `honeytrap_sessions_truncated_total{reason}`
+- `honeytrap_session_bytes_total{protocol,direction}`
+- `honeytrap_pcap_exports_total`
+- `honeytrap_session_duration_seconds` (histogram)
+
+---
+
 ## 🧪 Development
 
 ```bash

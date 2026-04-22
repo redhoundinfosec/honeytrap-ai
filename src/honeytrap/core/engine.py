@@ -8,6 +8,7 @@ responder, geo resolver, and all protocol handlers derived from the loaded
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import platform
 import sys
@@ -25,6 +26,15 @@ from honeytrap.core.rate_limiter import RateLimiter
 from honeytrap.core.sanitizer import InputSanitizer
 from honeytrap.core.session import SessionManager
 from honeytrap.exceptions import PortBindError
+from honeytrap.forensics.recorder import (
+    Direction,
+    ForensicsConfig,
+    JsonlSessionStore,
+    SessionRecorder,
+    SessionStore,
+    SqliteSessionStore,
+    _MetricSink,
+)
 from honeytrap.geo.resolver import GeoResolver
 from honeytrap.intel.attack_mapper import ATTACKMapper
 from honeytrap.intel.ioc_extractor import IOCExtractor
@@ -147,6 +157,63 @@ class Engine:
         self._tui_notify_hook: Any = None
         self._alert_queue: asyncio.Queue[Event] | None = None
 
+        # Forensic recorder. The store path is rooted under the log
+        # directory by default so existing operators get a sensible
+        # location without touching their config.
+        self.forensics_config = ForensicsConfig(
+            enabled=config.forensics.enabled,
+            store=config.forensics.store,
+            path=config.forensics.path,
+            max_session_bytes=config.forensics.max_session_bytes,
+            max_daily_bytes=config.forensics.max_daily_bytes,
+            retention_days=config.forensics.retention_days,
+            record_tls_handshake=config.forensics.record_tls_handshake,
+        )
+        self.session_store: SessionStore | None = None
+        self.recorder: SessionRecorder | None = None
+        if self.forensics_config.enabled:
+            try:
+                forensics_root = Path(self.forensics_config.path)
+                if not forensics_root.is_absolute():
+                    forensics_root = log_dir / forensics_root.name
+                forensics_root.mkdir(parents=True, exist_ok=True)
+                if self.forensics_config.store == "sqlite":
+                    self.session_store = SqliteSessionStore(forensics_root / "sessions.db")
+                else:
+                    self.session_store = JsonlSessionStore(forensics_root)
+                self.recorder = SessionRecorder(
+                    self.session_store,
+                    self.forensics_config,
+                    guardian=self.guardian,
+                    metrics=_MetricSink(
+                        on_recorded=lambda proto: self.metrics.inc_counter(
+                            "honeytrap_sessions_recorded_total",
+                            labels={"protocol": proto or "unknown"},
+                        ),
+                        on_truncated=lambda reason: self.metrics.inc_counter(
+                            "honeytrap_sessions_truncated_total",
+                            labels={"reason": reason or "unknown"},
+                        ),
+                        on_bytes=lambda proto, direction, size: self.metrics.inc_counter(
+                            "honeytrap_session_bytes_total",
+                            value=float(size),
+                            labels={
+                                "protocol": proto or "unknown",
+                                "direction": direction,
+                            },
+                        ),
+                        on_duration=lambda seconds: self.metrics.observe_histogram(
+                            "honeytrap_session_duration_seconds",
+                            float(seconds),
+                        ),
+                    ),
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Forensic recorder init failed: %s", exc)
+                self.session_store = None
+                self.recorder = None
+        self._retention_task: asyncio.Task[None] | None = None
+
     # ------------------------------------------------------------------
     # Alerting hooks
     # ------------------------------------------------------------------
@@ -266,6 +333,10 @@ class Engine:
         # Start background log management + periodic reports
         self._listeners.append(asyncio.create_task(self.log_manager.monitor()))
 
+        if self.recorder is not None:
+            self._retention_task = asyncio.create_task(self._retention_loop())
+            self._listeners.append(self._retention_task)
+
         # Wire the alert manager to the event bus if enabled.
         if self.alert_manager is not None:
             self._alert_queue = self.subscribe()
@@ -314,6 +385,11 @@ class Engine:
                 pass
         await self.log_manager.close()
         self.database.close()
+        if self.session_store is not None:
+            try:
+                self.session_store.close()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("session_store close failed: %s", exc)
 
     async def run_forever(self) -> None:
         """Run until Ctrl+C. The dashboard, if enabled, is started separately."""
@@ -433,3 +509,89 @@ class Engine:
         except Exception as exc:  # noqa: BLE001
             logger.debug("GeoIP failed for %s: %s", ip, exc)
             return {"country_code": "XX", "country_name": "Unknown", "asn": ""}
+
+    # ------------------------------------------------------------------
+    # Forensic recording helpers
+    # ------------------------------------------------------------------
+    def record_session_open(
+        self,
+        *,
+        session_id: str,
+        protocol: str,
+        remote_ip: str,
+        remote_port: int,
+        local_ip: str = "",
+        local_port: int = 0,
+    ) -> None:
+        """Open a forensic session if recording is configured."""
+        if self.recorder is None:
+            return
+        try:
+            self.recorder.open_session(
+                session_id=session_id,
+                protocol=protocol,
+                remote_ip=remote_ip,
+                remote_port=remote_port,
+                local_ip=local_ip,
+                local_port=local_port,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("record_session_open failed: %s", exc)
+
+    def record_frame(
+        self,
+        *,
+        session_id: str,
+        direction: Direction,
+        payload: bytes,
+        source_ip: str,
+        source_port: int,
+        dest_ip: str,
+        dest_port: int,
+        protocol: str = "",
+        is_tls_handshake: bool = False,
+    ) -> None:
+        """Record a single inbound or outbound frame for replay."""
+        if self.recorder is None or not payload:
+            return
+        try:
+            self.recorder.record_frame(
+                session_id=session_id,
+                direction=direction,
+                payload=payload,
+                source_ip=source_ip,
+                source_port=source_port,
+                dest_ip=dest_ip,
+                dest_port=dest_port,
+                protocol=protocol,
+                is_tls_handshake=is_tls_handshake,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("record_frame failed: %s", exc)
+
+    def record_session_close(self, session_id: str) -> None:
+        """Mark a forensic session closed."""
+        if self.recorder is None:
+            return
+        try:
+            self.recorder.close_session(session_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("record_session_close failed: %s", exc)
+
+    async def _retention_loop(self) -> None:
+        """Run a retention sweep at startup and then once per 24h."""
+        if self.recorder is None:
+            return
+        try:
+            self.recorder.sweep_retention()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Initial forensic sweep failed: %s", exc)
+        while not self._stopping.is_set():
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(self._stopping.wait(), timeout=24 * 3600)
+            if self._stopping.is_set():
+                return
+            try:
+                self.recorder.sweep_retention()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Periodic forensic sweep failed: %s", exc)

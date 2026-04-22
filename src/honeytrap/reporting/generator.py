@@ -283,6 +283,73 @@ class ReportGenerator:
         out.write_text(html, encoding="utf-8")
         return out
 
+    def render_html_with_sessions(
+        self,
+        output_path: Path | str,
+        session_store: Any,
+        *,
+        top_n: int = 10,
+        redact: bool = True,
+    ) -> Path:
+        """Render the main report alongside per-session forensic pages.
+
+        Materializes a ``sessions/`` subdirectory next to the report
+        with one ``<session_id>.html`` page, a ``<session_id>.pcap``
+        export, and a ``<session_id>.jsonl.gz`` JSONL export per
+        session. Links are appended to the main report at the end.
+
+        Args:
+            output_path: Path for the main report HTML file.
+            session_store: Any :class:`SessionStore` implementation.
+            top_n: Number of most-recent sessions to materialize.
+            redact: Redact credentials in timeline descriptions.
+        """
+        from honeytrap.forensics.pcap import PcapWriter, SessionFlow
+        from honeytrap.forensics.recorder import serialize_jsonl
+        from honeytrap.forensics.timeline import Timeline
+
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        sessions_dir = out.parent / "sessions"
+        sessions_dir.mkdir(parents=True, exist_ok=True)
+
+        sessions = session_store.list_sessions()[:top_n]
+        session_links: list[dict[str, str]] = []
+        for meta in sessions:
+            frames = session_store.load_frames(meta.session_id)
+            timeline = Timeline.for_session(
+                session_store, meta.session_id, redact=redact
+            )
+            page = timeline.to_html(title=f"Session {meta.session_id}")
+            page_path = sessions_dir / f"{meta.session_id}.html"
+            page_path.write_text(page, encoding="utf-8")
+            pcap_path = sessions_dir / f"{meta.session_id}.pcap"
+            with pcap_path.open("wb") as fh:
+                writer = PcapWriter(fh)
+                writer.write_session(SessionFlow(metadata=meta, frames=frames))
+            jsonl_path = sessions_dir / f"{meta.session_id}.jsonl.gz"
+            jsonl_path.write_bytes(serialize_jsonl(meta, frames))
+            session_links.append(
+                {
+                    "session_id": meta.session_id,
+                    "ip": meta.remote_ip,
+                    "protocol": meta.protocol,
+                    "frames": str(meta.frame_count),
+                    "page": f"sessions/{meta.session_id}.html",
+                    "pcap": f"sessions/{meta.session_id}.pcap",
+                    "jsonl": f"sessions/{meta.session_id}.jsonl.gz",
+                }
+            )
+
+        html, _ = self._build_html()
+        if session_links:
+            html = html.replace(
+                "</body>",
+                _build_sessions_section(session_links) + "\n</body>",
+            )
+        out.write_text(html, encoding="utf-8")
+        return out
+
     # ------------------------------------------------------------------
     # PDF
     # ------------------------------------------------------------------
@@ -300,6 +367,11 @@ class ReportGenerator:
         return export_pdf(html, out)
 
     @staticmethod
+    def _build_sessions_section_html(session_links: list[dict[str, str]]) -> str:
+        """Public test hook -- return the HTML section for session links."""
+        return _build_sessions_section(session_links)
+
+    @staticmethod
     def _minimal_html(context: dict[str, Any]) -> str:
         """Fallback if the Jinja template can't load."""
         return (
@@ -313,3 +385,31 @@ class ReportGenerator:
     def snapshot(self) -> AnalysisSnapshot:
         """Convenience passthrough for tests."""
         return self.analyzer.snapshot(top_n=self.config.reporting.top_n_attackers)
+
+
+def _build_sessions_section(session_links: list[dict[str, str]]) -> str:
+    """Render the session-index section appended to the main HTML report."""
+    from html import escape
+
+    rows = []
+    for link in session_links:
+        rows.append(
+            "<tr>"
+            f"<td><a href='{escape(link['page'])}'>{escape(link['session_id'])}</a></td>"
+            f"<td>{escape(link['ip'])}</td>"
+            f"<td>{escape(link['protocol'])}</td>"
+            f"<td>{escape(link['frames'])}</td>"
+            f"<td><a href='{escape(link['pcap'])}'>PCAP</a></td>"
+            f"<td><a href='{escape(link['jsonl'])}'>JSONL</a></td>"
+            "</tr>"
+        )
+    table_body = "\n".join(rows)
+    return (
+        "<section id='forensic-sessions' style='margin-top:2rem;'>"
+        "<h2>Forensic Session Replays</h2>"
+        "<table style='width:100%;border-collapse:collapse;'>"
+        "<thead><tr style='text-align:left;border-bottom:1px solid #444;'>"
+        "<th>Session</th><th>IP</th><th>Protocol</th><th>Frames</th>"
+        "<th>PCAP</th><th>JSONL</th></tr></thead>"
+        f"<tbody>{table_body}</tbody></table></section>"
+    )

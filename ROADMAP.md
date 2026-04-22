@@ -118,3 +118,21 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] Alert rule: malware/bot -> HIGH, scanner/pentest_tool -> MEDIUM
 - [x] Prometheus counter `honeytrap_tls_fingerprint_total` with bounded cardinality (top 100)
 - [x] CLI flags `--tls-fingerprint-db PATH`, `--disable-tls-fingerprinting`
+
+## Phase 11 — Session Replay & Forensic Export (Cycle 9, 2026-04-22)
+
+- [x] Byte-accurate `SessionRecorder` with passive event-bus subscription
+- [x] Pluggable `SessionStore` ABC with `JsonlSessionStore` (gzipped per-session, date-partitioned) and `SqliteSessionStore` (WAL mode) backends
+- [x] Per-session (10 MiB) and per-day (1 GiB) caps with sampling-mode truncation (keep first 100 + last 100 frames, `truncated=true` marker)
+- [x] `ResourceGuardian` integration — pauses disk writes under pressure
+- [x] `PcapWriter` with synthesized TCP three-way handshake, MSS segmentation, FIN/ACK teardown, IPv4 + IPv6, correct one's complement checksums
+- [x] PCAP-lite reader for round-trip tests + CLI parity
+- [x] `Timeline` reconstruction with classified entries, credential redaction (default on), text/JSON/HTML rendering
+- [x] `Timeline.for_session`, `for_sessions`, `for_ip` factories + `filter` chain (direction/kind/substring/size)
+- [x] `honeytrap export {pcap,jsonl,timeline,list}` subcommand group
+- [x] HTML report `Forensic Session Replays` section with per-session pages and PCAP/JSONL downloads
+- [x] TUI Replay tab — frame cursor, hex dump, six playback speeds, one-key PCAP/JSONL export
+- [x] Retention sweep — runs at startup and every 24h, removes data older than `retention_days`
+- [x] Prometheus metrics: `honeytrap_sessions_recorded_total`, `honeytrap_sessions_truncated_total`, `honeytrap_session_bytes_total`, `honeytrap_pcap_exports_total`, histogram `honeytrap_session_duration_seconds`
+- [x] `forensics` config block (enabled/store/path/max_session_bytes/max_daily_bytes/retention_days/record_tls_handshake)
+- [x] 44 new tests under `tests/forensics/` (recorder, stores, PCAP, timeline, CLI, replay TUI)

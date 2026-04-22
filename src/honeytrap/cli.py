@@ -157,6 +157,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_cmd = sub.add_parser("list-profiles", help="List bundled device profiles.")
     _ = list_cmd
 
+    from honeytrap.forensics.cli import build_export_parser
+
+    build_export_parser(sub)
+
     return parser.parse_args(argv)
 
 
@@ -507,6 +511,10 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_report(args, cfg)
     if args.command == "list-profiles":
         return _cmd_list_profiles()
+    if args.command == "export":
+        from honeytrap.forensics.cli import run_export
+
+        return run_export(args, cfg)
 
     # Default: interactive start
     console = Console()

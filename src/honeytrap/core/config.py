@@ -157,6 +157,24 @@ class TLSFingerprintConfig:
 
 
 @dataclass
+class ForensicsConfigRaw:
+    """Configuration for the session-recording forensics subsystem.
+
+    Mirrors :class:`honeytrap.forensics.recorder.ForensicsConfig` but
+    lives here so the YAML loader can populate it without dragging the
+    forensics package into the config module's import graph.
+    """
+
+    enabled: bool = True
+    store: str = "jsonl"  # jsonl | sqlite
+    path: str = "./sessions"
+    max_session_bytes: int = 10 * 1024 * 1024
+    max_daily_bytes: int = 1024 * 1024 * 1024
+    retention_days: int = 30
+    record_tls_handshake: bool = True
+
+
+@dataclass
 class Config:
     """Root configuration object."""
 
@@ -170,6 +188,7 @@ class Config:
     guardian: GuardianConfig = field(default_factory=GuardianConfig)
     alerts: AlertsConfigRaw = field(default_factory=AlertsConfigRaw)
     tls_fingerprint: TLSFingerprintConfig = field(default_factory=TLSFingerprintConfig)
+    forensics: ForensicsConfigRaw = field(default_factory=ForensicsConfigRaw)
 
     def to_dict(self) -> dict[str, Any]:
         """Return the config as a plain dictionary."""

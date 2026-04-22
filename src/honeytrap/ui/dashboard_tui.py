@@ -20,6 +20,7 @@ lightweight mock in the test suite.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections import Counter, deque
 from collections.abc import Awaitable, Callable, Iterable
@@ -178,7 +179,16 @@ class SessionDetailModal(ModalScreen[None]):
     recent event payload. ``escape`` dismisses the modal.
     """
 
-    BINDINGS = [Binding("escape", "dismiss_modal", "Close", show=True)]
+    BINDINGS = [
+        Binding("escape", "dismiss_modal", "Close", show=True),
+        Binding("space", "toggle_play", "Play/Pause", show=True),
+        Binding("right", "step_forward", "Step >", show=True),
+        Binding("left", "step_backward", "Step <", show=True),
+        Binding(">", "speed_up", "Speed +", show=True),
+        Binding("<", "speed_down", "Speed -", show=True),
+        Binding("e", "export_pcap", "Export PCAP", show=True),
+        Binding("E", "export_jsonl", "Export JSONL", show=True),
+    ]
     DEFAULT_CSS = """
     SessionDetailModal {
         align: center middle;
@@ -192,11 +202,36 @@ class SessionDetailModal(ModalScreen[None]):
     }
     """
 
-    def __init__(self, session_id: str, events: list[Event]) -> None:
-        """Initialize the modal with session id and its events."""
+    PLAYBACK_SPEEDS: tuple[float, ...] = (0.25, 0.5, 1.0, 2.0, 4.0, 8.0)
+
+    def __init__(
+        self,
+        session_id: str,
+        events: list[Event],
+        *,
+        replay_frames: list[Any] | None = None,
+        export_dir: Any | None = None,
+    ) -> None:
+        """Initialize the modal with session id and its events.
+
+        Args:
+            session_id: The session id this modal renders.
+            events: Live event stream associated with the session.
+            replay_frames: Optional list of
+                :class:`~honeytrap.forensics.recorder.SessionFrame` for the
+                Replay tab. When omitted the Replay tab is hidden.
+            export_dir: Optional :class:`pathlib.Path`-like dir for the
+                ``e``/``E`` export keybindings. Defaults to ``./``.
+        """
         super().__init__()
         self._session_id = session_id
         self._events = events
+        self._replay_frames = list(replay_frames or [])
+        self._frame_index = 0
+        self._is_playing = False
+        self._speed_index = 2  # 1.0x default
+        self._export_dir = export_dir
+        self._last_export_path: Any | None = None
 
     def compose(self) -> ComposeResult:
         """Build modal widgets."""
@@ -211,6 +246,11 @@ class SessionDetailModal(ModalScreen[None]):
             yield Static(self._render_iocs(), id="session-iocs")
             yield Label("Payload (hex)", classes="section-header")
             yield Static(self._render_hex(), id="session-hex")
+            if self._replay_frames:
+                yield Label("Replay", classes="section-header", id="replay-header")
+                yield Static(self._render_replay_status(), id="replay-status")
+                yield Static(self._render_replay_frame_list(), id="replay-frames")
+                yield Static(self._render_replay_hex(), id="replay-hex")
 
     def _render_metadata(self) -> str:
         """Render the session metadata header line."""
@@ -282,6 +322,143 @@ class SessionDetailModal(ModalScreen[None]):
             ascii_part = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
             lines.append(f"{i:04x}  {hex_part:<48}  {ascii_part}")
         return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # Replay tab helpers
+    # ------------------------------------------------------------------
+    def _render_replay_status(self) -> str:
+        """Render the playback status line."""
+        speed = self.PLAYBACK_SPEEDS[self._speed_index]
+        state = "PLAY" if self._is_playing else "PAUSE"
+        total = len(self._replay_frames)
+        idx = self._frame_index + 1 if total else 0
+        return f"[{state}] frame {idx}/{total}  speed={speed:.2f}x"
+
+    def _render_replay_frame_list(self) -> str:
+        """Render a window of frames around the cursor."""
+        if not self._replay_frames:
+            return "(no recorded frames)"
+        lines: list[str] = []
+        start = max(0, self._frame_index - 5)
+        end = min(len(self._replay_frames), self._frame_index + 6)
+        for i in range(start, end):
+            frame = self._replay_frames[i]
+            arrow = "->" if getattr(getattr(frame, "direction", None), "value", "") == "INBOUND" else "<-"
+            cursor = ">>" if i == self._frame_index else "  "
+            payload = getattr(frame, "payload", b"")
+            preview = payload[:32].decode("utf-8", "replace").replace("\r", "\\r").replace("\n", "\\n")
+            lines.append(f"{cursor} {i:04d} {arrow} ({len(payload)}b) {preview}")
+        return "\n".join(lines)
+
+    def _render_replay_hex(self) -> str:
+        """Render the hex dump of the currently selected frame."""
+        if not self._replay_frames:
+            return "(none)"
+        frame = self._replay_frames[self._frame_index]
+        payload = getattr(frame, "payload", b"")[:256]
+        if not payload:
+            return "(empty frame)"
+        lines = []
+        for i in range(0, len(payload), 16):
+            chunk = payload[i : i + 16]
+            hex_part = " ".join(f"{b:02x}" for b in chunk)
+            ascii_part = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
+            lines.append(f"{i:04x}  {hex_part:<48}  {ascii_part}")
+        return "\n".join(lines)
+
+    def _refresh_replay_panels(self) -> None:
+        """Re-render replay widgets after a playback action."""
+        for widget_id, render in (
+            ("replay-status", self._render_replay_status),
+            ("replay-frames", self._render_replay_frame_list),
+            ("replay-hex", self._render_replay_hex),
+        ):
+            with contextlib.suppress(Exception):
+                self.query_one(f"#{widget_id}", Static).update(render())
+
+    def action_toggle_play(self) -> None:
+        """Toggle playback state and advance the cursor on play."""
+        if not self._replay_frames:
+            return
+        self._is_playing = not self._is_playing
+        if self._is_playing and self._frame_index < len(self._replay_frames) - 1:
+            self._frame_index += 1
+        self._refresh_replay_panels()
+
+    def action_step_forward(self) -> None:
+        """Advance one frame."""
+        if not self._replay_frames:
+            return
+        if self._frame_index < len(self._replay_frames) - 1:
+            self._frame_index += 1
+        self._refresh_replay_panels()
+
+    def action_step_backward(self) -> None:
+        """Step one frame back."""
+        if not self._replay_frames:
+            return
+        if self._frame_index > 0:
+            self._frame_index -= 1
+        self._refresh_replay_panels()
+
+    def action_speed_up(self) -> None:
+        """Bump playback speed up to the next preset."""
+        if self._speed_index < len(self.PLAYBACK_SPEEDS) - 1:
+            self._speed_index += 1
+        self._refresh_replay_panels()
+
+    def action_speed_down(self) -> None:
+        """Slow playback down to the next preset."""
+        if self._speed_index > 0:
+            self._speed_index -= 1
+        self._refresh_replay_panels()
+
+    def action_export_pcap(self) -> None:
+        """Export the recorded session to a PCAP file."""
+        path = self._export_session("pcap")
+        if path is not None:
+            self._toast(f"PCAP exported: {path}")
+
+    def action_export_jsonl(self) -> None:
+        """Export the recorded session to a JSONL.gz file."""
+        path = self._export_session("jsonl")
+        if path is not None:
+            self._toast(f"JSONL exported: {path}")
+
+    def _export_session(self, kind: str) -> Any | None:
+        """Materialize the recorded session to disk and return the path."""
+        if not self._replay_frames:
+            return None
+        from pathlib import Path
+
+        from honeytrap.forensics.pcap import PcapWriter, SessionFlow
+        from honeytrap.forensics.recorder import SessionMetadata, serialize_jsonl
+
+        out_dir = Path(self._export_dir) if self._export_dir else Path(".")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        meta = SessionMetadata(
+            session_id=self._session_id,
+            protocol=self._replay_frames[0].protocol if self._replay_frames else "",
+            remote_ip=getattr(self._replay_frames[0], "source_ip", ""),
+            remote_port=getattr(self._replay_frames[0], "source_port", 0),
+            local_ip=getattr(self._replay_frames[0], "dest_ip", ""),
+            local_port=getattr(self._replay_frames[0], "dest_port", 0),
+        )
+        if kind == "pcap":
+            path = out_dir / f"{self._session_id}.pcap"
+            with path.open("wb") as fh:
+                writer = PcapWriter(fh)
+                writer.write_session(SessionFlow(metadata=meta, frames=list(self._replay_frames)))
+        else:
+            path = out_dir / f"{self._session_id}.jsonl.gz"
+            path.write_bytes(serialize_jsonl(meta, list(self._replay_frames)))
+        self._last_export_path = path
+        return path
+
+    def _toast(self, message: str) -> None:
+        """Surface a status line via app.notify when available."""
+        with contextlib.suppress(Exception):
+            self.app.notify(message, title="Forensics export")
 
     def action_dismiss_modal(self) -> None:
         """Close the modal."""

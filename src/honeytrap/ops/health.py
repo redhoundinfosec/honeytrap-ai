@@ -44,6 +44,17 @@ class MetricsRegistry:
     so the same metric with different labels accumulates independently.
     """
 
+    DEFAULT_HISTOGRAM_BUCKETS: tuple[float, ...] = (
+        0.5,
+        1.0,
+        5.0,
+        15.0,
+        60.0,
+        300.0,
+        1800.0,
+        3600.0,
+    )
+
     def __init__(self) -> None:
         """Create an empty registry."""
         self._lock = threading.Lock()
@@ -51,6 +62,7 @@ class MetricsRegistry:
         self._gauges: dict[tuple[str, tuple[tuple[str, str], ...]], float] = {}
         self._help: dict[str, str] = {}
         self._types: dict[str, str] = {}
+        self._histograms: dict[str, dict[str, float]] = {}
 
     def register(self, name: str, help_text: str, metric_type: str) -> None:
         """Declare a metric so it is emitted even before first use."""
@@ -71,6 +83,33 @@ class MetricsRegistry:
         key = (name, self._labels_key(labels))
         with self._lock:
             self._gauges[key] = float(value)
+
+    def observe_histogram(
+        self,
+        name: str,
+        value: float,
+        buckets: tuple[float, ...] | None = None,
+    ) -> None:
+        """Record a histogram observation against the named metric.
+
+        Bucket counts are stored as cumulative tallies keyed by string
+        bucket bound so the Prometheus exposition is straightforward.
+        """
+        with self._lock:
+            histo = self._histograms.setdefault(
+                name,
+                {"_count": 0.0, "_sum": 0.0},
+            )
+            buckets = buckets or self.DEFAULT_HISTOGRAM_BUCKETS
+            for b in buckets:
+                key = f"{b}"
+                if value <= b:
+                    histo[key] = histo.get(key, 0.0) + 1.0
+                else:
+                    histo.setdefault(key, 0.0)
+            histo["+Inf"] = histo.get("+Inf", 0.0) + 1.0
+            histo["_count"] += 1.0
+            histo["_sum"] += float(value)
 
     def snapshot(self) -> dict[str, Any]:
         """Return a plain-dict snapshot, mostly for tests."""
@@ -109,12 +148,27 @@ def format_prometheus(registry: MetricsRegistry) -> str:
             set(registry._help)
             | {n for n, _ in registry._counters}
             | {n for n, _ in registry._gauges}
+            | set(registry._histograms)
         )
         for name in names:
             help_text = registry._help.get(name, name)
             metric_type = registry._types.get(name, "counter")
             lines.append(f"# HELP {name} {help_text}")
             lines.append(f"# TYPE {name} {metric_type}")
+            if metric_type == "histogram" and name in registry._histograms:
+                histo = registry._histograms[name]
+                buckets = sorted(
+                    (k for k in histo if k not in {"_count", "_sum", "+Inf"}),
+                    key=float,
+                )
+                for b in buckets:
+                    lines.append(f'{name}_bucket{{le="{b}"}} {_fmt_value(histo[b])}')
+                lines.append(
+                    f'{name}_bucket{{le="+Inf"}} {_fmt_value(histo.get("+Inf", 0.0))}'
+                )
+                lines.append(f"{name}_count {_fmt_value(histo['_count'])}")
+                lines.append(f"{name}_sum {_fmt_value(histo['_sum'])}")
+                continue
             samples = [
                 (label_pairs, value)
                 for (n, label_pairs), value in registry._counters.items()
@@ -363,5 +417,30 @@ def build_default_registry() -> MetricsRegistry:
         "honeytrap_tls_fingerprint_total",
         "Total TLS fingerprints observed, by JA3 hash and attributed category/name.",
         "counter",
+    )
+    registry.register(
+        "honeytrap_sessions_recorded_total",
+        "Total session frames recorded, by protocol.",
+        "counter",
+    )
+    registry.register(
+        "honeytrap_sessions_truncated_total",
+        "Total sessions that hit a recording cap, by reason.",
+        "counter",
+    )
+    registry.register(
+        "honeytrap_session_bytes_total",
+        "Total bytes recorded into sessions, by protocol and direction.",
+        "counter",
+    )
+    registry.register(
+        "honeytrap_pcap_exports_total",
+        "Total PCAP exports written.",
+        "counter",
+    )
+    registry.register(
+        "honeytrap_session_duration_seconds",
+        "Session duration histogram (seconds).",
+        "histogram",
     )
     return registry
