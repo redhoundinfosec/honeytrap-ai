@@ -161,6 +161,27 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     build_export_parser(sub)
 
+    from honeytrap.api.cli import build_api_parser
+
+    build_api_parser(sub)
+
+    parser.add_argument(
+        "--api-enabled",
+        action="store_true",
+        help="Start the management REST API alongside the honeypot.",
+    )
+    parser.add_argument(
+        "--api-port",
+        type=int,
+        default=9300,
+        help="Port for the management API when --api-enabled (default: 9300).",
+    )
+    parser.add_argument(
+        "--api-bind",
+        default="127.0.0.1",
+        help="Bind address for the management API (default: 127.0.0.1).",
+    )
+
     return parser.parse_args(argv)
 
 
@@ -515,6 +536,10 @@ def main(argv: list[str] | None = None) -> int:
         from honeytrap.forensics.cli import run_export
 
         return run_export(args, cfg)
+    if args.command == "api":
+        from honeytrap.api.cli import run_api_command
+
+        return run_api_command(args, cfg)
 
     # Default: interactive start
     console = Console()

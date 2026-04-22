@@ -832,3 +832,120 @@ mirrors all of the above for headless workflows.
 **Zero new runtime dependencies** — the entire subsystem is
 stdlib-only (``gzip``, ``sqlite3``, ``socket``, ``struct``,
 ``threading``).
+
+## Cycle 10 — Management REST API (2026-04-22)
+
+**Summary.** Add a production-quality management REST API under
+`/api/v1` with API-key auth, RBAC, optional HMAC signing, per-key
+rate limiting, gzipped audit log, and OpenAPI 3.1 + Rapidoc docs.
+Stdlib only (`http.server.ThreadingHTTPServer` on a background
+thread); zero new runtime dependencies. Default bind is
+`127.0.0.1:9300` and the server refuses non-loopback binds without
+`--allow-external`.
+
+**New package: `src/honeytrap/api/`**
+
+- `config.py` — `APIConfig` (host/port, TLS, trusted proxies,
+  body cap, role rate-limits, audit/key paths). Coerces `state_dir`
+  strings to `Path` in `__post_init__`.
+- `rbac.py` — `Role(VIEWER/ANALYST/ADMIN)` enum with integer
+  `level` and hierarchical `.satisfies()`.
+- `auth.py` — `APIKey` dataclass, `APIKeyStore` (thread-safe,
+  atomic JSON write), `generate_api_key()` (`htk_` + 40 urlsafe
+  chars), `hash_key`, `compute_hmac`, `build_hmac_string`, and
+  `ReplayCache` (10 k entries × 10 min TTL).
+- `errors.py` — `APIError` exception with JSON envelope and
+  helpers for every standard status (`bad_request`, `unauthorized`,
+  `forbidden`, `not_found`, `payload_too_large`, `rate_limited`).
+- `rate_limit.py` — per-key token-bucket with role-based capacity.
+- `audit.py` — `AuditLog` writing gzipped JSONL with 100 MiB × 10
+  rotation; never records bodies or secrets.
+- `router.py` — path-parameter-aware route registry with method
+  inspection and role metadata.
+- `models.py` — public DTOs (`SessionSummary`, `EventRecord`,
+  `AlertRecord`, `MetricsSnapshot`, `ProfileInfo`, `APIKeyPublic`).
+- `service.py` — `HoneytrapService` Protocol + `InMemoryService`
+  test implementation + `ControlState` (paused / shutdown_requested).
+- `openapi.py` — OpenAPI 3.1 generator (`x-required-role`
+  extension) and Rapidoc HTML template.
+- `server.py` — `APIServer` wiring the router, authentication
+  pipeline, HMAC verification, rate limiter, body cap, security
+  headers, audit hook, and 26 registered routes. Exposes
+  `handle(method, path, headers, body, remote_addr)` for direct
+  unit testing alongside the live `ThreadingHTTPServer`.
+- `cli.py` — `honeytrap api start | keys create|list|revoke |
+  openapi` subcommand tree.
+- `__init__.py` — package facade.
+
+**Endpoints** (prefix `/api/v1`):
+
+- Public: `/health`, `/openapi.json`, `/docs`.
+- Viewer: `/sessions`, `/sessions/{id}`, `/sessions/{id}/events`,
+  `/alerts`, `/intel/attck`, `/intel/iocs`, `/intel/tls`,
+  `/metrics/prometheus`, `/metrics/summary`, `/profiles`,
+  `/profiles/{name}`, `/config`.
+- Analyst: `/sessions/{id}/timeline`, `/sessions/{id}/pcap`,
+  `/sessions/{id}/jsonl.gz`, `/alerts/{id}/ack`.
+- Admin: `/profiles/reload`, `/apikeys` (GET/POST),
+  `/apikeys/{id}` (DELETE), `/control/pause|resume|shutdown`.
+
+**Security controls**
+
+- API tokens: `htk_` + 40 urlsafe base64 chars; server persists
+  only the SHA-256 digest; plaintext shown exactly once at
+  creation; `hmac.compare_digest` for constant-time comparison.
+- Optional HMAC signing (`--require-hmac`): canonical
+  `METHOD|path|timestamp|sha256(body)`, SHA-256 HMAC, 300 s skew
+  window, bounded replay cache keyed on `(token_hash, signature)`.
+- Per-key token-bucket rate limiter (viewer 60 / analyst 120 /
+  admin 240 req/min default), `Retry-After` on rejection.
+- 1 MiB default body cap enforced both at `Content-Length` and
+  after read.
+- Security headers on every response
+  (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`, `Cache-Control: no-store` on
+  auth endpoints, HSTS when TLS enabled).
+- Refuses to bind to a non-loopback address without
+  `--allow-external`; warns loudly when external + plaintext.
+
+**CLI changes**
+
+- `src/honeytrap/cli.py` — registers `api` subparser, adds
+  `--api-enabled / --api-port / --api-bind` flags, dispatches to
+  `run_api_command`.
+
+**Docs**
+
+- `docs/api.md` — full endpoint reference, HMAC signing examples
+  (Python + curl), audit log schema, role matrix, error envelope.
+- `README.md` — new "Management API" section with quickstart and
+  role matrix.
+- `ROADMAP.md` — Cycle 10 / Phase 12 checked off.
+
+**Tests** (new, under `tests/api/`, 36 total):
+
+- `test_auth.py` (8): missing/invalid/revoked tokens, prefix
+  rejection, plaintext-shown-once contract, store round-trip.
+- `test_rbac.py` (4): role hierarchy, insufficient role 403,
+  admin satisfies analyst+viewer.
+- `test_sessions.py` (6): list, filter by ip/protocol/time,
+  pagination cursor, session detail, events, 404.
+- `test_alerts.py` (2): list + severity filter, ack round-trip.
+- `test_intel.py` (3): ATT&CK counts, IOC type filter, TLS top-N.
+- `test_control.py` (3): pause, resume, shutdown flags
+  `ControlState`.
+- `test_apikeys_endpoint.py` (2): admin-only create + revoke.
+- `test_openapi.py` (2): schema structure validates, security
+  schemes present, `x-required-role` on non-public routes.
+- `test_security_headers.py` (3): security headers on success,
+  error, and auth-endpoint paths.
+- `test_rate_limit.py` (1): burst exceeds capacity -> 429 with
+  `Retry-After`.
+- `test_server_wire.py` (2): live `ThreadingHTTPServer` bind,
+  real HTTP GET round-trip with API key.
+
+**Test counts**: 286 -> 322 passing (+36), 1 skipped.
+
+**Zero new runtime dependencies** — everything is stdlib
+(`http.server`, `ssl`, `gzip`, `hmac`, `hashlib`, `secrets`,
+`json`, `threading`).

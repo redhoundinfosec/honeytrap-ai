@@ -495,6 +495,43 @@ retransmit analysis does not.
 
 ---
 
+## 🛰️ Management API
+
+HoneyTrap ships with a stdlib-only REST API under `/api/v1` for dashboards,
+automation, and SOC tooling. Default bind is `127.0.0.1:9300`; the server
+refuses non-loopback binds without `--allow-external` and supports optional
+TLS and HMAC-signed requests.
+
+```bash
+# Mint an admin token (shown exactly once)
+honeytrap api keys create --name ops --role admin
+
+# Start the server (plaintext on loopback; add --tls-cert/--tls-key for HTTPS)
+honeytrap api start --bind 127.0.0.1 --port 9300
+
+# Call it
+curl -H "X-API-Key: htk_..." http://127.0.0.1:9300/api/v1/sessions
+
+# Live docs
+open http://127.0.0.1:9300/api/v1/docs
+```
+
+Role matrix:
+
+| Role    | Grants                                                              |
+| ------- | ------------------------------------------------------------------- |
+| viewer  | sessions, events, alerts, intel, metrics, profiles, config          |
+| analyst | viewer + timeline/PCAP/JSONL export + alert acknowledge             |
+| admin   | analyst + profile reload + API-key management + pause/resume/shutdown |
+
+Built-in controls: API-key auth (SHA-256-only at rest, `htk_` prefix, shown
+once), optional HMAC signing with 300 s skew and replay cache, per-key
+token-bucket rate limits, 1 MiB body cap, gzipped JSONL audit log with
+rotation, security headers on every response. Full endpoint reference and
+signing examples in [docs/api.md](docs/api.md).
+
+---
+
 ## 🧪 Development
 
 ```bash

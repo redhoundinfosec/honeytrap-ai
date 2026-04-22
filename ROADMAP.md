@@ -136,3 +136,19 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] Prometheus metrics: `honeytrap_sessions_recorded_total`, `honeytrap_sessions_truncated_total`, `honeytrap_session_bytes_total`, `honeytrap_pcap_exports_total`, histogram `honeytrap_session_duration_seconds`
 - [x] `forensics` config block (enabled/store/path/max_session_bytes/max_daily_bytes/retention_days/record_tls_handshake)
 - [x] 44 new tests under `tests/forensics/` (recorder, stores, PCAP, timeline, CLI, replay TUI)
+
+## Phase 12 — Management REST API (Cycle 10, 2026-04-22)
+
+- [x] Stdlib-only `http.server.ThreadingHTTPServer` under `/api/v1` with background thread and clean shutdown
+- [x] API-key auth: `htk_` prefix, SHA-256-only persistence, constant-time compare, shown-once semantics
+- [x] RBAC with viewer/analyst/admin and hierarchical satisfaction
+- [x] Optional HMAC request signing (`METHOD|path|timestamp|sha256(body)`, 300 s skew, bounded replay cache)
+- [x] Per-key token-bucket rate limiter (role-based capacity), `Retry-After` on rejection
+- [x] 1 MiB body cap, security headers, HSTS when TLS is on, no-CORS by default
+- [x] Gzipped JSONL audit log with 100 MiB × 10 rotation; never logs secrets
+- [x] Protocol-based `HoneytrapService` facade with `InMemoryService` for tests and future engine binding
+- [x] 26 endpoints covering sessions, events, alerts, intel (ATT&CK/IOC/TLS), metrics, profiles, config, API-key admin, and pause/resume/shutdown controls
+- [x] Forensic export passthroughs for PCAP and gzipped JSONL session dumps
+- [x] OpenAPI 3.1 schema generated from the router registry (`x-required-role` extension) + Rapidoc UI at `/api/v1/docs`
+- [x] `honeytrap api start|keys create|list|revoke|openapi` CLI subcommand tree, loopback-only by default, refuses external bind without `--allow-external`
+- [x] 36 new tests under `tests/api/` covering auth, RBAC, HMAC + replay, rate limiting, body cap, security headers, endpoint behavior, OpenAPI validity, and live wire (`ThreadingHTTPServer`) round-trip
