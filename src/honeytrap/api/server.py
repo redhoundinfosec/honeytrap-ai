@@ -462,6 +462,40 @@ class APIServer:
                 raise bad_request("top must be an integer") from exc
             return _json_response(200, {"items": self.service.tls_top(top=top)})
 
+        # --- AI / adaptive responder ------------------------------------
+        @r.route(
+            f"{API_PREFIX}/sessions/{{session_id}}/memory",
+            methods=["GET"],
+            role=_ROLE_VIEWER,
+            tags=["ai"],
+        )
+        def _session_memory(ctx: _RequestContext, session_id: str) -> _Response:
+            """Return the adaptive AI memory snapshot for a session."""
+            memory = self.service.ai_session_memory(session_id)
+            if memory is None:
+                raise not_found(f"memory for session {session_id!r} not found")
+            return _json_response(200, memory)
+
+        @r.route(
+            f"{API_PREFIX}/intel/intents",
+            methods=["GET"],
+            role=_ROLE_VIEWER,
+            tags=["ai"],
+        )
+        def _intent_counts(ctx: _RequestContext) -> _Response:
+            """Return the histogram of classified attacker intents."""
+            return _json_response(200, {"counts": self.service.ai_intent_counts()})
+
+        @r.route(
+            f"{API_PREFIX}/ai/backends",
+            methods=["GET"],
+            role=_ROLE_VIEWER,
+            tags=["ai"],
+        )
+        def _ai_backends(ctx: _RequestContext) -> _Response:
+            """Return health of configured AI response backends."""
+            return _json_response(200, {"backends": self.service.ai_backend_health()})
+
         # --- Metrics ----------------------------------------------------
         @r.route(
             f"{API_PREFIX}/metrics/prometheus",

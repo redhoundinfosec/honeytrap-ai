@@ -51,6 +51,22 @@ class AIConfig:
     timeout_seconds: float = 8.0
     fallback_to_rules: bool = True
     max_tokens: int = 400
+    # ------------------------------------------------------------------
+    # Cycle 11 adaptive-response fields
+    # ------------------------------------------------------------------
+    adaptive_enabled: bool = False
+    memory_store: str = "memory"  # memory | sqlite
+    memory_cap_ips: int = 10_000
+    memory_cap_sessions_per_ip: int = 50
+    intent_enabled: bool = True
+    cache_enabled: bool = True
+    cache_capacity: int = 5_000
+    cache_ttl_seconds: int = 1_800
+    backends: dict[str, Any] = field(default_factory=dict)
+    prompts_dir: str | None = None
+    redact_secrets_in_prompts: bool = True
+    dry_run: bool = False
+    force_backend: str | None = None
 
 
 @dataclass
@@ -225,6 +241,10 @@ def _apply_dict(cfg: Config, data: dict[str, Any]) -> Config:
 def _apply_env(cfg: Config) -> Config:
     """Apply ``HONEYTRAP_*`` environment overrides."""
     # A few well-known overrides map to typed fields.
+    if (value := os.environ.get("HONEYTRAP_AI_ADAPTIVE")):
+        cfg.ai.adaptive_enabled = value.lower() in {"1", "true", "yes", "on"}
+    if (value := os.environ.get("HONEYTRAP_AI_FORCE_BACKEND")):
+        cfg.ai.force_backend = value
     if (value := os.environ.get("HONEYTRAP_AI_KEY")):
         cfg.ai.api_key = value
     if (value := os.environ.get("HONEYTRAP_AI_ENDPOINT")):

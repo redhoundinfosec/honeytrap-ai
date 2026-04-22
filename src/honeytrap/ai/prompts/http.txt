@@ -1,0 +1,9 @@
+HTTP/1.1 404 Not Found
+Server: ${server_header}
+Date: ${http_date}
+Content-Type: text/html; charset=UTF-8
+Content-Length: ${content_length}
+Connection: close
+
+<html><head><title>404 Not Found</title></head>
+<body><h1>Not Found</h1><p>The requested URL ${path} was not found on ${hostname}.</p></body></html>

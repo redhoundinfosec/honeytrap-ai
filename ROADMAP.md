@@ -152,3 +152,23 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] OpenAPI 3.1 schema generated from the router registry (`x-required-role` extension) + Rapidoc UI at `/api/v1/docs`
 - [x] `honeytrap api start|keys create|list|revoke|openapi` CLI subcommand tree, loopback-only by default, refuses external bind without `--allow-external`
 - [x] 36 new tests under `tests/api/` covering auth, RBAC, HMAC + replay, rate limiting, body cap, security headers, endpoint behavior, OpenAPI validity, and live wire (`ThreadingHTTPServer`) round-trip
+
+## Phase 13 — Per-Session AI Memory, Intent Classification, Adaptive Backends (Cycle 11, 2026-04-22)
+
+- [x] `SessionMemory` dataclass with command/auth/upload history, intent, confidence, ATT&CK techniques, per-backend latency
+- [x] `InMemoryStore` (OrderedDict LRU, per-IP + per-session caps) and `SqliteMemoryStore` (WAL, JSON blob payload)
+- [x] `build_store()` factory dispatching on `memory_store` config (`memory` / `sqlite`)
+- [x] Deterministic `classify()` with 10 `IntentLabel` values and `(label, confidence, rationale[:3])` return shape
+- [x] ATT&CK bias: `T1078+T1059 -> CREDENTIAL_HARVEST`, `T1190 -> EXPLOIT_ATTEMPT`, `T1110 -> BRUTE_FORCE`, `T1496 -> COIN_MINING`
+- [x] `ResponseCache` LRU with TTL, HTTP key case-fold + whitespace collapse, SSH case-sensitivity
+- [x] `ChainBackend` with always-appended `TemplateBackend` safety net and safety tripwires against AI self-reference leaks
+- [x] Concrete stdlib-only backends: `OpenAIBackend`, `AnthropicBackend`, `OllamaBackend` with bounded retry policy (0.5 s + 1.5 s)
+- [x] `ProtocolResponder.get_response()` orchestration: cache → classify → chain → shape-validate
+- [x] HTTP status line + SMTP 3-digit code + UTF-8 SSH shape validators
+- [x] `redact_prompt()` scrubs passwords, bearer tokens, AWS keys, PEM blocks before prompts leave the process
+- [x] Metrics: `honeytrap_ai_intent_total`, `honeytrap_ai_backend_used_total` counters; `honeytrap_ai_cache_hit_ratio` gauge
+- [x] HIGH-severity intent transition alert callback (fires once per transition)
+- [x] API: `GET /api/v1/sessions/{id}/memory`, `GET /api/v1/intel/intents`, `GET /api/v1/ai/backends`
+- [x] CLI: `--ai-enabled/--no-ai`, `--ai-backend`, `--ai-dry-run`, and `honeytrap ai test` subcommand
+- [x] `ai:` config block with `adaptive_enabled`, memory/intent/cache toggles, backends list, `redact_secrets_in_prompts`, `force_backend`
+- [x] 48 new tests under `tests/ai/` covering memory, intent, cache, each backend, adapter shape + safety paths, and all three API endpoints

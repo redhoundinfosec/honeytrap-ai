@@ -1,0 +1,1 @@
+250 ${hostname} Hello ${remote_ip}, pleased to meet you

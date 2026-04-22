@@ -97,6 +97,12 @@ class HoneytrapService(Protocol):
 
     def tls_top(self, *, top: int) -> list[dict[str, Any]]: ...
 
+    def ai_session_memory(self, session_id: str) -> dict[str, Any] | None: ...
+
+    def ai_intent_counts(self) -> dict[str, int]: ...
+
+    def ai_backend_health(self) -> list[dict[str, Any]]: ...
+
     def prometheus_text(self) -> str: ...
 
     def metrics_summary(self) -> MetricsSnapshot: ...
@@ -177,6 +183,22 @@ class InMemoryService:
         self._prom_text: str = "# HELP noop noop\n# TYPE noop counter\nnoop 0\n"
         self._reload_counter = 0
         self.control = ControlState()
+        self._ai_memories: dict[str, dict[str, Any]] = {}
+        self._ai_intents: dict[str, int] = {}
+        self._ai_backend_health: list[dict[str, Any]] = []
+
+    # -- AI-related mutators used by tests ------------------------------
+    def set_ai_memory(self, session_id: str, snapshot: dict[str, Any]) -> None:
+        """Register a fake session memory snapshot for API tests."""
+        self._ai_memories[session_id] = dict(snapshot)
+
+    def set_ai_intents(self, counts: dict[str, int]) -> None:
+        """Replace the intent-counts series returned by the API."""
+        self._ai_intents = dict(counts)
+
+    def set_ai_backend_health(self, rows: list[dict[str, Any]]) -> None:
+        """Replace the backend health snapshot for the ``/ai/backends`` route."""
+        self._ai_backend_health = list(rows)
 
     # -- mutators used by tests ----------------------------------------
     def add_session(self, session: _StoredSession) -> None:
@@ -349,6 +371,18 @@ class InMemoryService:
     def tls_top(self, *, top: int) -> list[dict[str, Any]]:
         """Return the top-N TLS fingerprints, capped at ``top``."""
         return list(self._tls[: max(0, int(top))])
+
+    def ai_session_memory(self, session_id: str) -> dict[str, Any] | None:
+        """Return the fake session memory set by :meth:`set_ai_memory`."""
+        return dict(self._ai_memories[session_id]) if session_id in self._ai_memories else None
+
+    def ai_intent_counts(self) -> dict[str, int]:
+        """Return the intent-label histogram."""
+        return dict(self._ai_intents)
+
+    def ai_backend_health(self) -> list[dict[str, Any]]:
+        """Return the configured backends' last-success timestamps."""
+        return list(self._ai_backend_health)
 
     def prometheus_text(self) -> str:
         """Return the Prometheus text exposition."""

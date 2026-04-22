@@ -130,6 +130,34 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--ai-enabled",
+        dest="ai_enabled",
+        action="store_true",
+        default=None,
+        help="Force-enable the adaptive AI response layer.",
+    )
+    parser.add_argument(
+        "--no-ai",
+        dest="ai_enabled",
+        action="store_false",
+        default=None,
+        help="Disable the adaptive AI response layer for this run.",
+    )
+    parser.add_argument(
+        "--ai-backend",
+        choices=["template", "openai", "anthropic", "ollama"],
+        default=None,
+        help="Pin the adaptive responder to a single backend for debugging.",
+    )
+    parser.add_argument(
+        "--ai-dry-run",
+        dest="ai_dry_run",
+        action="store_true",
+        default=False,
+        help="Classify and generate but do not send to the attacker; log output only.",
+    )
+
+    parser.add_argument(
         "--tls-fingerprint-db",
         dest="tls_fingerprint_db",
         default=None,
@@ -160,6 +188,28 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     from honeytrap.forensics.cli import build_export_parser
 
     build_export_parser(sub)
+
+    ai_parser = sub.add_parser("ai", help="Adaptive AI inspection and test tools.")
+    ai_sub = ai_parser.add_subparsers(dest="ai_command")
+    ai_test = ai_sub.add_parser("test", help="One-shot generator CLI for backend evaluation.")
+    ai_test.add_argument(
+        "--protocol",
+        required=True,
+        choices=["ssh", "http", "smtp", "telnet", "ftp", "mysql"],
+        help="Target protocol for the generated response.",
+    )
+    ai_test.add_argument(
+        "--input",
+        dest="ai_input",
+        required=True,
+        help="Inbound text. Prefix with @ to read from a file path.",
+    )
+    ai_test.add_argument(
+        "--backend",
+        choices=["template", "openai", "anthropic", "ollama"],
+        default="template",
+        help="Which backend to exercise (default: template).",
+    )
 
     from honeytrap.api.cli import build_api_parser
 
@@ -540,6 +590,18 @@ def main(argv: list[str] | None = None) -> int:
         from honeytrap.api.cli import run_api_command
 
         return run_api_command(args, cfg)
+    if args.command == "ai":
+        from honeytrap.ai.cli import run_ai_command
+
+        return run_ai_command(args, cfg)
+
+    # Apply adaptive-AI CLI overrides before the engine reads config.
+    if getattr(args, "ai_enabled", None) is not None:
+        cfg.ai.adaptive_enabled = bool(args.ai_enabled)
+    if getattr(args, "ai_backend", None):
+        cfg.ai.force_backend = args.ai_backend
+    if getattr(args, "ai_dry_run", False):
+        cfg.ai.dry_run = True
 
     # Default: interactive start
     console = Console()

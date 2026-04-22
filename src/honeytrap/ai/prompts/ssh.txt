@@ -1,0 +1,4 @@
+You are logged into ${hostname} as ${user}.
+uid=0(root) gid=0(root) groups=0(root)
+Linux ${hostname} ${kernel} #1 SMP ${build_date} x86_64 GNU/Linux
+ ${uptime_line}

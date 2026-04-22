@@ -87,6 +87,55 @@ class Engine:
         self.ai = AIResponder(config.ai, self.rules)
         self.personalities = GeoPersonalitySelector(enabled=config.geo.vary_responses)
 
+        # Adaptive AI layer (Cycle 11). Components lazy-built so the
+        # engine boots even when the adaptive path is disabled.
+        from honeytrap.ai.adapter import ProtocolResponder as _AdaptiveResponder
+        from honeytrap.ai.backends import build_backend as _build_backend
+        from honeytrap.ai.backends import instantiate as _instantiate_backend
+        from honeytrap.ai.cache import ResponseCache as _AiCache
+        from honeytrap.ai.memory import build_store as _build_memory_store
+
+        self.ai_memory = _build_memory_store(
+            config.ai.memory_store,
+            state_dir=log_dir,
+            cap_ips=config.ai.memory_cap_ips,
+            cap_sessions_per_ip=config.ai.memory_cap_sessions_per_ip,
+        )
+        ai_cache = (
+            _AiCache(
+                capacity=config.ai.cache_capacity,
+                ttl_seconds=config.ai.cache_ttl_seconds,
+            )
+            if config.ai.cache_enabled
+            else None
+        )
+        backend_specs = config.ai.backends or {}
+        if config.ai.force_backend:
+            forced = _instantiate_backend(
+                {"type": config.ai.force_backend, **backend_specs.get(config.ai.force_backend, {})}
+            )
+            self.ai_backends = _build_backend(
+                [{"type": config.ai.force_backend}] if forced is None else [],
+                prompts_dir=config.ai.prompts_dir,
+            )
+            if forced is not None:
+                self.ai_backends.backends = [forced, *self.ai_backends.backends[-1:]]
+        else:
+            ordered = [
+                backend_specs.get("primary"),
+                backend_specs.get("secondary"),
+                backend_specs.get("tertiary"),
+            ]
+            self.ai_backends = _build_backend(ordered, prompts_dir=config.ai.prompts_dir)
+        self.ai_cache = ai_cache
+        self.ai_responder = _AdaptiveResponder(
+            chain=self.ai_backends,
+            cache=ai_cache,
+            metrics=None,  # wired later when the health server hooks are up
+            enabled=config.ai.adaptive_enabled,
+            redact_secrets=config.ai.redact_secrets_in_prompts,
+        )
+
         # Security layer — each of these is engine-global so every handler
         # gets consistent limits without the caller having to wire it in.
         self.rate_limiter = RateLimiter(

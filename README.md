@@ -532,6 +532,34 @@ signing examples in [docs/api.md](docs/api.md).
 
 ---
 
+## Adaptive AI
+
+Every protocol handler can route inbound bytes through an adaptive
+response layer that combines per-session memory, a deterministic
+intent classifier, and a pluggable backend chain.
+
+```
+ inbound ---> [ cache ] ---> [ classify ] ---> [ chain: openai / anthropic / ollama ] ---> [ template fallback ] ---> shape-validated bytes
+```
+
+- `SessionMemory` keeps a rolling view of the attacker (commands,
+  auth attempts, ATT&CK techniques, protocol history).
+- `classify()` maps the memory to one of 10 `IntentLabel` values
+  with a confidence score — no LLM required.
+- `ResponseCache` is an LRU with TTL keyed on
+  `(protocol, normalized_inbound, memory_hash)`.
+- The backend chain always ends in a `TemplateBackend`, so the
+  honeypot never stalls on an LLM outage. Safety tripwires veto
+  AI self-reference leaks.
+- Every prompt is redacted before leaving the process; HTTP/SMTP
+  wire shapes are validated on the way out.
+
+Enable with `--ai-enabled` or `adaptive_enabled: true` in the
+`ai:` config block. See [docs/ai.md](docs/ai.md) for full
+details.
+
+---
+
 ## 🧪 Development
 
 ```bash

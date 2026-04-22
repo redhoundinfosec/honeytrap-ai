@@ -219,6 +219,19 @@ class SSHHandler(ProtocolHandler):
                     break
 
                 response = self.engine.rules.shell_response(command)
+                if not response:
+                    adaptive_bytes = await self.adaptive_response(
+                        session_id=session.session_id,
+                        source_ip=ip,
+                        inbound=command,
+                        persona={
+                            "hostname": personality.company.lower().replace(" ", "-"),
+                            "user": "root",
+                            "company": personality.company,
+                        },
+                    )
+                    if adaptive_bytes:
+                        response = adaptive_bytes.decode("utf-8", errors="replace")
                 if not response and self.engine.ai.available:
                     system = (
                         f"You are simulating a Linux shell on {personality.company} "

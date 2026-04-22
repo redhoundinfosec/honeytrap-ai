@@ -116,11 +116,11 @@ class MetricsRegistry:
         with self._lock:
             return {
                 "counters": {
-                    (name, dict(label_pairs)): value
+                    (name, label_pairs): value
                     for (name, label_pairs), value in self._counters.items()
                 },
                 "gauges": {
-                    (name, dict(label_pairs)): value
+                    (name, label_pairs): value
                     for (name, label_pairs), value in self._gauges.items()
                 },
             }

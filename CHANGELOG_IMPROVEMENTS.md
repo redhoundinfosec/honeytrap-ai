@@ -949,3 +949,138 @@ thread); zero new runtime dependencies. Default bind is
 **Zero new runtime dependencies** — everything is stdlib
 (`http.server`, `ssl`, `gzip`, `hmac`, `hashlib`, `secrets`,
 `json`, `threading`).
+
+---
+
+## Cycle 11 — Per-Session AI Memory, Intent Classification, and Adaptive Response Backends (2026-04-22)
+
+**Goal**: give every protocol handler a per-attacker memory, a
+deterministic intent classifier, and a pluggable backend chain so
+responses can become progressively more convincing without ever
+crashing a session on an LLM outage.
+
+**New package**: `src/honeytrap/ai/`
+
+- `memory.py` — `SessionMemory` dataclass (command/auth/upload
+  history, intent, confidence, ATT&CK techniques, protocol
+  history, per-backend latency), plus `InMemoryStore` (OrderedDict
+  LRU with per-IP and per-session caps) and `SqliteMemoryStore`
+  (WAL mode, JSON blob payload) and a `build_store()` factory.
+- `intent.py` — `IntentLabel` enum (10 labels), `classify()`
+  heuristic scorer returning `(label, confidence, rationale[:3])`.
+  Pattern-matched signals for recon, brute force, exploit, credential
+  harvest, exfiltration, persistence, coin mining, web shell,
+  lateral movement. ATT&CK bias: `T1078+T1059 -> CREDENTIAL_HARVEST`,
+  `T1190 -> EXPLOIT_ATTEMPT`, `T1110 -> BRUTE_FORCE`,
+  `T1496 -> COIN_MINING`. High-severity set used for alert gating.
+- `cache.py` — `ResponseCache` with capacity (default 5000) and
+  TTL (default 1800 s). HTTP keys are case-folded and whitespace
+  collapsed; SSH/shell keys stay case-sensitive. `CacheStats`
+  exposes hits/misses/ratio.
+- `backends/base.py` — `ResponseRequest` / `ResponseResult` /
+  `ResponseBackend` ABC.
+- `backends/_http.py` — stdlib `urllib` wrapper (`post_json`) with
+  explicit per-request timeout; no third-party deps.
+- `backends/template.py` — always-on persona templates with
+  `session_id`-seeded PRNG so the same attacker sees consistent
+  personas across turns. Handles SSH shell prompts, HTTP status
+  lines, SMTP banners, and Telnet greetings.
+- `backends/openai.py`, `backends/anthropic.py`, `backends/ollama.py`
+  — concrete backends with 4xx-skip-retry / 5xx-retry policy, module-level
+  `_RETRY_BACKOFFS = (0.5, 1.5)` that tests can monkey-patch to 0.
+- `backends/__init__.py` — `ChainBackend` walks backends in order
+  and always appends a final `TemplateBackend`. `_SAFETY_TRIPWIRES`
+  veto any response containing phrases like `"as an AI"`,
+  `"language model"`, `"openai"`, `"anthropic"` — the chain falls
+  through to the template. `BackendHealth` tracks calls / failures.
+- `prompts/{ssh,http,smtp,telnet}.txt` — persona placeholder
+  templates the template backend fills in.
+- `redact.py` — `redact_prompt()` scrubs passwords, bearer tokens,
+  AWS keys, long alnum tokens, and PEM blocks before prompts leave
+  the process.
+- `adapter.py` — `ProtocolResponder.get_response()` orchestrates
+  cache -> classifier -> chain -> shape validator. Validates HTTP
+  status lines, SMTP 3-digit codes, and UTF-8 SSH output; a shape
+  failure silently falls back to the template. Emits counters
+  `honeytrap_ai_intent_total` and `honeytrap_ai_backend_used_total`
+  and gauge `honeytrap_ai_cache_hit_ratio`. Fires a one-shot alert
+  callback on HIGH-severity intent transitions.
+
+**Wired in**:
+
+- `core/config.py` — `AIConfig` extended with
+  `adaptive_enabled`, `memory_store`, `memory_cap_ips`,
+  `memory_cap_sessions_per_ip`, `intent_enabled`,
+  `cache_enabled/capacity/ttl_seconds`, `backends` dict,
+  `prompts_dir`, `redact_secrets_in_prompts`, `dry_run`,
+  `force_backend`. New env vars `HONEYTRAP_AI_ADAPTIVE` and
+  `HONEYTRAP_AI_FORCE_BACKEND`.
+- `core/engine.py` — builds `ai_memory`, `ai_cache`,
+  `ai_backends`, and `ai_responder` with lazy imports and empty
+  fallbacks when adaptive is disabled.
+- `protocols/base.py` — new `adaptive_response()` async helper
+  returns `b""` when the adapter is disabled; handlers skip
+  cleanly.
+- `protocols/ssh_handler.py` — calls `adaptive_response()` before
+  the existing AI fallback.
+- `api/service.py` — `ai_session_memory`, `ai_intent_counts`,
+  `ai_backend_health` methods on both `HoneytrapService` protocol
+  and `InMemoryService`, plus `set_ai_memory/intents/backend_health`
+  test helpers.
+- `api/server.py` — three new viewer-role routes tagged `ai`:
+  `GET /api/v1/sessions/{id}/memory`,
+  `GET /api/v1/intel/intents`,
+  `GET /api/v1/ai/backends`.
+- `cli.py` + `ai/cli.py` — `--ai-enabled/--no-ai`,
+  `--ai-backend`, `--ai-dry-run`; new `honeytrap ai test`
+  subcommand runs one synthetic exchange per protocol against the
+  live chain.
+
+**LLM-shape issues discovered during development**:
+
+- Empty string returned by Ollama on unseeded context models
+  trips shape validation and falls back to template. Working as
+  intended; surfaced as `shape_ok=False`.
+- Anthropic sometimes returns a leading assistant preamble
+  ("Certainly! Here is ..."); the HTTP shape validator catches
+  this because the first bytes aren't `HTTP/`.
+- OpenAI 5xx bursts require bounded retries (2 attempts on top of
+  the first try) — more and the session stalls.
+
+**Tests** (new, under `tests/ai/`, 48 total):
+
+- `test_memory.py` (8): LRU per-IP cap, per-session cap,
+  eviction order, SQLite round-trip, WAL enabled, factory
+  dispatch, `record_command` dedup, dict round-trip.
+- `test_intent.py` (10): brute force, log4j, credential harvest,
+  miner strings, persistence, baseline unknown, rationale
+  present, T1078+T1059 bias, web-shell artefact, lateral movement.
+- `test_cache.py` (6): hit/miss accounting, TTL expiry, HTTP
+  case-fold + whitespace, SSH case-sensitivity, memory-hash
+  distinguishes snapshots, capacity eviction.
+- `test_backends_template.py` (4): SSH prompt shape, HTTP status
+  line, SMTP banner, persona consistency across calls.
+- `test_backends_openai.py` (5): success parse, 5xx retried then
+  fails over, 401 no-retry, timeout -> shape-fail, missing API
+  key.
+- `test_backends_anthropic.py` (1): Messages envelope parsed.
+- `test_backends_ollama.py` (2): `/api/chat` body shape,
+  empty-response shape-fail.
+- `test_adapter.py` (7): disabled path, chain + classifier
+  flow, shape-violating output falls back to template, safety
+  filter catches AI self-reference, metrics counters, cache-hit
+  flow, alert callback fires on HIGH-severity transition.
+- `test_api_memory_endpoint.py` (5): session memory returned,
+  404 for unknown, 401 without auth, intent counts endpoint,
+  backend health endpoint.
+
+**Test counts**: 322 -> 370 passing (+48), 1 skipped.
+
+**Zero new runtime dependencies** — every backend uses stdlib
+`urllib.request` wrapped in `asyncio.to_thread`. Timeouts are
+mandatory on every HTTP call. All tests mock the network; no
+real keys or endpoints are touched.
+
+**Pre-existing fix**: `ops/health.py::snapshot()` previously put a
+`dict` inside another `dict` key (unhashable); replaced with the
+stored tuple so `reg.snapshot()` works for labelled metrics.

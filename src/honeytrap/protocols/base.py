@@ -159,6 +159,38 @@ class ProtocolHandler(ABC):
             except Exception:  # noqa: BLE001
                 pass
 
+    async def adaptive_response(
+        self,
+        *,
+        session_id: str,
+        source_ip: str,
+        inbound: bytes | str,
+        persona: dict[str, str] | None = None,
+        system_prompt: str | None = None,
+    ) -> bytes:
+        """Ask the AI adapter for a response, or ``b""`` when disabled.
+
+        Handlers opt in per-service. Returning ``b""`` lets the caller
+        continue with its existing static-response path unchanged.
+        """
+        cfg = getattr(self.engine.config, "ai", None)
+        if cfg is None or not getattr(cfg, "adaptive_enabled", False):
+            return b""
+        responder = getattr(self.engine, "ai_responder", None)
+        memory_store = getattr(self.engine, "ai_memory", None)
+        if responder is None or memory_store is None:
+            return b""
+        memory = memory_store.get_or_create(session_id, source_ip)
+        result = await responder.get_response(
+            protocol=self.name,
+            inbound=inbound,
+            memory=memory,
+            persona=persona or {},
+            system_prompt=system_prompt,
+        )
+        memory_store.update(memory)
+        return result.response
+
     def idle_timeout(self) -> float:
         """Return the idle-timeout (seconds) configured for this protocol."""
         timeouts = self.engine.config.timeouts
