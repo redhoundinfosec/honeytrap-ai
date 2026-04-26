@@ -165,6 +165,31 @@ class AlertsConfigRaw:
 
 
 @dataclass
+class SinksConfigRaw:
+    """Raw representation of the ``sinks`` YAML block.
+
+    Sinks are constructed lazily by
+    :mod:`honeytrap.sinks` so the config module never imports sink
+    code. The block is disabled by default; enabling it requires an
+    explicit ``enabled: true`` plus at least one entry in ``targets``.
+    """
+
+    enabled: bool = False
+    queue_capacity: int = 10_000
+    on_overflow: str = "drop_oldest"
+    targets: list[dict[str, Any]] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a dict suitable for sink factory consumption."""
+        return {
+            "enabled": self.enabled,
+            "queue_capacity": self.queue_capacity,
+            "on_overflow": self.on_overflow,
+            "targets": list(self.targets),
+        }
+
+
+@dataclass
 class TLSFingerprintConfig:
     """Toggles for the JA3/JA4 TLS fingerprinting subsystem."""
 
@@ -205,6 +230,7 @@ class Config:
     alerts: AlertsConfigRaw = field(default_factory=AlertsConfigRaw)
     tls_fingerprint: TLSFingerprintConfig = field(default_factory=TLSFingerprintConfig)
     forensics: ForensicsConfigRaw = field(default_factory=ForensicsConfigRaw)
+    sinks: SinksConfigRaw = field(default_factory=SinksConfigRaw)
 
     def to_dict(self) -> dict[str, Any]:
         """Return the config as a plain dictionary."""
@@ -223,6 +249,18 @@ def _apply_dict(cfg: Config, data: dict[str, Any]) -> Config:
             channels = section_data.get("channels")
             if isinstance(channels, list):
                 cfg.alerts.channels = [c for c in channels if isinstance(c, dict)]
+            continue
+        if section_name == "sinks" and isinstance(section_data, dict):
+            cfg.sinks.enabled = bool(section_data.get("enabled", cfg.sinks.enabled))
+            cfg.sinks.queue_capacity = int(
+                section_data.get("queue_capacity", cfg.sinks.queue_capacity)
+            )
+            cfg.sinks.on_overflow = str(
+                section_data.get("on_overflow", cfg.sinks.on_overflow)
+            )
+            targets = section_data.get("targets")
+            if isinstance(targets, list):
+                cfg.sinks.targets = [t for t in targets if isinstance(t, dict)]
             continue
         if not isinstance(section_data, dict):
             continue

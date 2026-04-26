@@ -121,6 +121,18 @@ class HoneytrapService(Protocol):
 
     def shutdown(self) -> None: ...
 
+    def stix_sessions(self) -> list[dict[str, Any]]: ...
+
+    def stix_iocs(self) -> list[dict[str, Any]]: ...
+
+    def stix_techniques(self) -> list[dict[str, Any]]: ...
+
+    def stix_tls_matches(self) -> list[dict[str, Any]]: ...
+
+    def sinks_health(self) -> list[dict[str, Any]]: ...
+
+    def sinks_flush(self, name: str) -> dict[str, Any]: ...
+
 
 # ---------------------------------------------------------------------------
 # In-memory implementation used by tests and CLI dry runs.
@@ -186,6 +198,10 @@ class InMemoryService:
         self._ai_memories: dict[str, dict[str, Any]] = {}
         self._ai_intents: dict[str, int] = {}
         self._ai_backend_health: list[dict[str, Any]] = []
+        self._stix_techniques: list[dict[str, Any]] = []
+        self._stix_tls: list[dict[str, Any]] = []
+        self._sinks_health: list[dict[str, Any]] = []
+        self._sinks_flushes: dict[str, dict[str, Any]] = {}
 
     # -- AI-related mutators used by tests ------------------------------
     def set_ai_memory(self, session_id: str, snapshot: dict[str, Any]) -> None:
@@ -430,6 +446,62 @@ class InMemoryService:
     def shutdown(self) -> None:
         """Mark the service as having received a shutdown request."""
         self.control.shutdown_requested = True
+
+    # -- STIX / TAXII / sinks helpers ----------------------------------
+    def set_stix_techniques(self, techniques: list[dict[str, Any]]) -> None:
+        """Replace the technique list returned by :meth:`stix_techniques`."""
+        self._stix_techniques = list(techniques)
+
+    def set_stix_tls(self, matches: list[dict[str, Any]]) -> None:
+        """Replace the TLS match list returned by :meth:`stix_tls_matches`."""
+        self._stix_tls = list(matches)
+
+    def set_sinks_health(self, rows: list[dict[str, Any]]) -> None:
+        """Replace the sinks health list returned by :meth:`sinks_health`."""
+        self._sinks_health = list(rows)
+
+    def set_sinks_flush_result(self, name: str, payload: dict[str, Any]) -> None:
+        """Pre-seed the response for a manual flush of ``name``."""
+        self._sinks_flushes[name] = dict(payload)
+
+    def stix_sessions(self) -> list[dict[str, Any]]:
+        """Return every stored session as a dict for STIX bundle building."""
+        return [
+            {
+                "session_id": s.session_id,
+                "protocol": s.protocol,
+                "remote_ip": s.remote_ip,
+                "remote_port": s.remote_port,
+                "local_port": s.local_port,
+                "started_at": s.started_at,
+                "ended_at": s.ended_at,
+                "bytes_in": s.bytes_in,
+                "bytes_out": s.bytes_out,
+            }
+            for s in self._sessions.values()
+        ]
+
+    def stix_iocs(self) -> list[dict[str, Any]]:
+        """Return the IOC list in a STIX-friendly shape."""
+        return list(self._iocs)
+
+    def stix_techniques(self) -> list[dict[str, Any]]:
+        """Return the configured ATT&CK technique dicts."""
+        if self._stix_techniques:
+            return list(self._stix_techniques)
+        return [{"id": tid, "name": tid} for tid in self._attck]
+
+    def stix_tls_matches(self) -> list[dict[str, Any]]:
+        """Return TLS fingerprint match dicts."""
+        return list(self._stix_tls)
+
+    def sinks_health(self) -> list[dict[str, Any]]:
+        """Return the sinks health snapshot."""
+        return list(self._sinks_health)
+
+    def sinks_flush(self, name: str) -> dict[str, Any]:
+        """Return the pre-seeded flush result, defaulting to a stub OK."""
+        return dict(self._sinks_flushes.get(name, {"flushed": 0, "sink": name}))
 
 
 def _monotime() -> float:

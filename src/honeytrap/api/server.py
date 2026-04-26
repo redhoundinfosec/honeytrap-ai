@@ -248,6 +248,21 @@ class APIServer:
             "Number of non-revoked management-API keys.",
             "gauge",
         )
+        self.metrics.register(
+            "honeytrap_stix_bundles_generated_total",
+            "STIX 2.1 bundles successfully generated.",
+            "counter",
+        )
+        self.metrics.register(
+            "honeytrap_stix_objects_total",
+            "STIX 2.1 objects emitted, labelled by type.",
+            "counter",
+        )
+        self.metrics.register(
+            "honeytrap_taxii_requests_total",
+            "TAXII 2.1 requests served, labelled by endpoint and status.",
+            "counter",
+        )
 
     def _metric_inc(self, name: str, labels: dict[str, str] | None = None) -> None:
         if self.metrics is None:
@@ -631,6 +646,263 @@ class APIServer:
             """Trigger a graceful shutdown of the honeypot process."""
             self.service.shutdown()
             return _json_response(202, {"shutdown_requested": True})
+
+        # --- STIX / TAXII / sinks --------------------------------------
+        self._register_taxii_routes(r)
+        self._register_stix_routes(r)
+        self._register_sinks_routes(r)
+
+    def _register_stix_routes(self, r: Router) -> None:
+        """Register the ``/api/v1/intel/stix`` endpoint."""
+        from honeytrap.api.taxii import build_bundle_from_service
+
+        @r.route(
+            f"{API_PREFIX}/intel/stix",
+            methods=["GET"],
+            role=_ROLE_ANALYST,
+            tags=["intel"],
+        )
+        def _stix_bundle(ctx: _RequestContext) -> _Response:
+            """Return a STIX 2.1 bundle filtered by session/ip/since/until."""
+            sessions = self.service.stix_sessions()
+            session_id = _qp(ctx.query, "session_id")
+            ip = _qp(ctx.query, "ip")
+            since = _qp(ctx.query, "since")
+            until = _qp(ctx.query, "until")
+            if session_id:
+                sessions = [s for s in sessions if s.get("session_id") == session_id]
+            if ip:
+                sessions = [s for s in sessions if s.get("remote_ip") == ip]
+            if since:
+                sessions = [s for s in sessions if str(s.get("started_at", "")) >= since]
+            if until:
+                sessions = [s for s in sessions if str(s.get("started_at", "")) <= until]
+            iocs = self.service.stix_iocs()
+            if ip:
+                iocs = [i for i in iocs if i.get("value") != ip or i.get("type") not in {"ip", "ipv4"}] + [
+                    i for i in self.service.stix_iocs() if i.get("value") == ip
+                ]
+            builder = build_bundle_from_service(
+                sessions=sessions,
+                iocs=iocs,
+                techniques=self.service.stix_techniques(),
+                tls_matches=self.service.stix_tls_matches(),
+            )
+            self._metric_inc("honeytrap_stix_bundles_generated_total")
+            for stix_type, count in builder.object_count_by_type().items():
+                if self.metrics is not None:
+                    self.metrics.inc_counter(
+                        "honeytrap_stix_objects_total",
+                        value=float(count),
+                        labels={"type": stix_type},
+                    )
+            bundle = builder.build()
+            return _json_response(200, bundle)
+
+    def _register_sinks_routes(self, r: Router) -> None:
+        """Register the ``/api/v1/sinks`` endpoints."""
+
+        @r.route(f"{API_PREFIX}/sinks", methods=["GET"], role=_ROLE_VIEWER, tags=["sinks"])
+        def _sinks_list(ctx: _RequestContext) -> _Response:
+            """List configured sinks with their current health."""
+            return _json_response(200, {"items": self.service.sinks_health()})
+
+        @r.route(
+            f"{API_PREFIX}/sinks/{{name}}/flush",
+            methods=["POST"],
+            role=_ROLE_ADMIN,
+            tags=["sinks"],
+        )
+        def _sinks_flush(ctx: _RequestContext, name: str) -> _Response:
+            """Trigger a manual flush of a single sink."""
+            return _json_response(200, self.service.sinks_flush(name))
+
+    def _register_taxii_routes(self, r: Router) -> None:
+        """Register the TAXII 2.1 endpoint tree under ``/taxii/2.1``."""
+        from honeytrap.api.taxii import (
+            COLLECTION_IDS,
+            TAXII_CONTENT_TYPE,
+            TAXII_PREFIX,
+            TaxiiState,
+            collection_payload,
+            collections_list_payload,
+            discovery_payload,
+            find_collection_name,
+            manifest_envelope,
+            objects_envelope,
+            paginate,
+            root_payload,
+            status_payload,
+        )
+
+        def _taxii_response(status: int, payload: Any) -> _Response:
+            body = json.dumps(payload, default=_default_json).encode("utf-8")
+            return _Response(status, body, TAXII_CONTENT_TYPE, {})
+
+        def _build_state() -> TaxiiState:
+            state = TaxiiState()
+            state.rebuild(
+                sessions=self.service.stix_sessions(),
+                iocs=self.service.stix_iocs(),
+                techniques=self.service.stix_techniques(),
+                tls_matches=self.service.stix_tls_matches(),
+            )
+            return state
+
+        def _record_metric(endpoint: str, status: int) -> None:
+            self._metric_inc(
+                "honeytrap_taxii_requests_total",
+                labels={"endpoint": endpoint, "status": str(status)},
+            )
+
+        @r.route(f"{TAXII_PREFIX}/", methods=["GET"], role=_ROLE_VIEWER, tags=["taxii"])
+        def _taxii_discovery(ctx: _RequestContext) -> _Response:
+            """TAXII 2.1 discovery endpoint."""
+            _record_metric("discovery", 200)
+            return _taxii_response(200, discovery_payload())
+
+        @r.route(
+            f"{TAXII_PREFIX}/honeytrap/",
+            methods=["GET"],
+            role=_ROLE_VIEWER,
+            tags=["taxii"],
+        )
+        def _taxii_root(ctx: _RequestContext) -> _Response:
+            """TAXII 2.1 API root info."""
+            _record_metric("root", 200)
+            return _taxii_response(200, root_payload())
+
+        @r.route(
+            f"{TAXII_PREFIX}/honeytrap/collections/",
+            methods=["GET"],
+            role=_ROLE_VIEWER,
+            tags=["taxii"],
+        )
+        def _taxii_collections(ctx: _RequestContext) -> _Response:
+            """TAXII 2.1 collections list."""
+            _record_metric("collections", 200)
+            return _taxii_response(200, collections_list_payload())
+
+        @r.route(
+            f"{TAXII_PREFIX}/honeytrap/collections/{{collection_id}}/",
+            methods=["GET"],
+            role=_ROLE_VIEWER,
+            tags=["taxii"],
+        )
+        def _taxii_collection(ctx: _RequestContext, collection_id: str) -> _Response:
+            """TAXII 2.1 collection metadata."""
+            name = find_collection_name(collection_id)
+            if name is None:
+                _record_metric("collection", 404)
+                raise not_found(f"collection {collection_id!r} not found")
+            payload = collection_payload(name)
+            assert payload is not None
+            _record_metric("collection", 200)
+            return _taxii_response(200, payload)
+
+        @r.route(
+            f"{TAXII_PREFIX}/honeytrap/collections/{{collection_id}}/objects/",
+            methods=["GET"],
+            role=_ROLE_VIEWER,
+            tags=["taxii"],
+        )
+        def _taxii_objects(ctx: _RequestContext, collection_id: str) -> _Response:
+            """TAXII 2.1 paginated STIX objects."""
+            name = find_collection_name(collection_id)
+            if name is None:
+                _record_metric("objects", 404)
+                raise not_found(f"collection {collection_id!r} not found")
+            state = _build_state()
+            match_id = ctx.query.get("match[id]")
+            match_type = ctx.query.get("match[type]")
+            added_after_list = ctx.query.get("added_after") or []
+            added_after = added_after_list[0] if added_after_list else None
+            limit_list = ctx.query.get("limit") or []
+            cursor_list = ctx.query.get("next") or []
+            limit_raw = limit_list[0] if limit_list else None
+            cursor = cursor_list[0] if cursor_list else None
+            try:
+                limit_val = int(limit_raw) if limit_raw is not None else None
+            except ValueError as exc:
+                _record_metric("objects", 400)
+                raise bad_request("limit must be an integer") from exc
+            filtered = state.collections.filter(
+                name,
+                match_id=match_id,
+                match_type=match_type,
+                added_after=added_after,
+            )
+            page, next_token, more = paginate(filtered, limit=limit_val, cursor=cursor)
+            _record_metric("objects", 200)
+            return _taxii_response(
+                200,
+                objects_envelope(page, next_token=next_token, more=more),
+            )
+
+        @r.route(
+            f"{TAXII_PREFIX}/honeytrap/collections/{{collection_id}}/objects/{{object_id}}/",
+            methods=["GET"],
+            role=_ROLE_VIEWER,
+            tags=["taxii"],
+        )
+        def _taxii_object(
+            ctx: _RequestContext, collection_id: str, object_id: str
+        ) -> _Response:
+            """TAXII 2.1 single-object lookup."""
+            name = find_collection_name(collection_id)
+            if name is None:
+                _record_metric("object", 404)
+                raise not_found(f"collection {collection_id!r} not found")
+            state = _build_state()
+            filtered = state.collections.filter(name, match_id=[object_id])
+            if not filtered:
+                _record_metric("object", 404)
+                raise not_found(f"object {object_id!r} not found")
+            _record_metric("object", 200)
+            return _taxii_response(
+                200, objects_envelope(filtered, next_token=None, more=False)
+            )
+
+        @r.route(
+            f"{TAXII_PREFIX}/honeytrap/collections/{{collection_id}}/manifest/",
+            methods=["GET"],
+            role=_ROLE_VIEWER,
+            tags=["taxii"],
+        )
+        def _taxii_manifest(ctx: _RequestContext, collection_id: str) -> _Response:
+            """TAXII 2.1 manifest endpoint."""
+            name = find_collection_name(collection_id)
+            if name is None:
+                _record_metric("manifest", 404)
+                raise not_found(f"collection {collection_id!r} not found")
+            state = _build_state()
+            limit_list = ctx.query.get("limit") or []
+            cursor_list = ctx.query.get("next") or []
+            limit_raw = limit_list[0] if limit_list else None
+            cursor = cursor_list[0] if cursor_list else None
+            try:
+                limit_val = int(limit_raw) if limit_raw is not None else None
+            except ValueError as exc:
+                _record_metric("manifest", 400)
+                raise bad_request("limit must be an integer") from exc
+            filtered = state.collections.filter(name)
+            page, next_token, more = paginate(filtered, limit=limit_val, cursor=cursor)
+            _record_metric("manifest", 200)
+            return _taxii_response(
+                200,
+                manifest_envelope(page, next_token=next_token, more=more),
+            )
+
+        @r.route(
+            f"{TAXII_PREFIX}/honeytrap/status/{{status_id}}/",
+            methods=["GET"],
+            role=_ROLE_VIEWER,
+            tags=["taxii"],
+        )
+        def _taxii_status(ctx: _RequestContext, status_id: str) -> _Response:
+            """TAXII 2.1 status endpoint -- always returns ``complete``."""
+            _record_metric("status", 200)
+            return _taxii_response(200, status_payload(status_id))
 
     def openapi_document(self) -> dict[str, Any]:
         """Return (and cache) the OpenAPI 3.1 document for this server."""

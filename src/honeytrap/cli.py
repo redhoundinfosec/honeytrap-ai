@@ -215,6 +215,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     build_api_parser(sub)
 
+    from honeytrap.sinks.cli import build_sinks_parser
+
+    build_sinks_parser(sub)
+
     parser.add_argument(
         "--api-enabled",
         action="store_true",
@@ -594,6 +598,10 @@ def main(argv: list[str] | None = None) -> int:
         from honeytrap.ai.cli import run_ai_command
 
         return run_ai_command(args, cfg)
+    if args.command == "sinks":
+        from honeytrap.sinks.cli import run_sinks_command
+
+        return run_sinks_command(args, cfg)
 
     # Apply adaptive-AI CLI overrides before the engine reads config.
     if getattr(args, "ai_enabled", None) is not None:

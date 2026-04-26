@@ -560,6 +560,68 @@ details.
 
 ---
 
+## 📡 Threat Intel Sharing (STIX 2.1 / TAXII 2.1)
+
+HoneyTrap can publish observations as a STIX 2.1 bundle and serve
+them through a read-only TAXII 2.1 root mounted on the management
+API:
+
+- `honeytrap export stix --session sess-1 --out bundle.json [--pretty]`
+- `GET /api/v1/intel/stix?session_id=&ip=&since=&until=` (analyst role).
+- `GET /taxii/2.1/` (discovery), `/taxii/2.1/honeytrap/collections/`,
+  `/taxii/2.1/honeytrap/collections/{id}/objects/?limit=&next=`.
+
+Five collections are exposed (stable ids): `indicators`,
+`attack-patterns`, `observed-data`, `sightings`, `notes`. Bundles
+include `infrastructure`, `campaign`, `observed-data`, `indicator`,
+`attack-pattern`, and `note` SDOs (the latter carrying custom
+`x_ja3` / `x_ja4` properties). All ids are deterministic UUID5 over
+the natural key so re-emitting the same input produces byte-identical
+output.
+
+See [docs/stix.md](docs/stix.md) and [docs/taxii.md](docs/taxii.md)
+for details.
+
+---
+
+## 🪣 SIEM Integration (Sinks)
+
+HoneyTrap ships pluggable, asynchronous log sinks for shipping
+events to Elasticsearch, OpenSearch, Splunk HEC, or rotated JSONL
+files. All sinks share a backpressure pipeline with bounded queue
+(`drop_oldest` / `drop_new` / `block` overflow), batcher
+(500 events / 1 s), exponential-backoff retry with jitter, and a
+per-sink circuit breaker.
+
+```yaml
+sinks:
+  enabled: true
+  queue_capacity: 10000
+  on_overflow: drop_oldest
+  targets:
+    - { type: elasticsearch, name: es-prod, url: https://es.example,
+        index: "honeytrap-events-{+YYYY.MM.dd}", api_key_env: ES_API_KEY }
+    - { type: splunk_hec, name: splunk, url: https://splunk.example,
+        token_env: SPLUNK_HEC_TOKEN, index: main, host: honeytrap-1 }
+    - { type: file_jsonl, name: cold, path: /var/log/honeytrap/jsonl }
+```
+
+Operate from the CLI:
+
+```bash
+honeytrap sinks test es-prod
+honeytrap sinks health --json
+```
+
+Or query the API: `GET /api/v1/sinks` (viewer),
+`POST /api/v1/sinks/{name}/flush` (admin). Secrets are read from
+env vars only — never from YAML.
+
+See [docs/sinks.md](docs/sinks.md) for full configuration and ECS
+mapping details.
+
+---
+
 ## 🧪 Development
 
 ```bash

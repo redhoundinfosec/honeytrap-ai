@@ -1084,3 +1084,160 @@ real keys or endpoints are touched.
 **Pre-existing fix**: `ops/health.py::snapshot()` previously put a
 `dict` inside another `dict` key (unhashable); replaced with the
 stored tuple so `reg.snapshot()` works for labelled metrics.
+
+---
+
+## Cycle 12 — STIX 2.1 Bundles, TAXII 2.1 Server, and Pluggable SIEM Sinks (2026-04-23)
+
+This cycle wires HoneyTrap into the threat-intel sharing ecosystem and
+adds production-grade log shipping to Elasticsearch / OpenSearch /
+Splunk HEC / JSONL.
+
+**STIX 2.1 emitter** (`src/honeytrap/intel/stix/`):
+
+- `builder.py` — `StixBundleBuilder` with deterministic UUID5 ids per
+  natural key (so re-emitting the same input produces byte-identical
+  bundles and dedup is automatic). Auto-seeds an `identity` SDO.
+- `patterns.py` — strict pattern grammar for IPv4/IPv6/domain/URL/file
+  hash/email/user-agent values.
+- `mapping.py` — projection helpers: `stix_from_session` (creates
+  infrastructure + observed-data + campaign + relationships),
+  `stix_from_ioc` (indicator + observed-data + based-on),
+  `stix_from_attck` (attack-pattern + mitre-attack external ref +
+  kill-chain phase), `stix_from_tls` (note carrying custom `x_ja3` /
+  `x_ja4` properties).
+- `serializer.py` — `dump_compact` (sorted keys, no whitespace, used
+  for TAXII responses) and `dump_pretty` (indent=2, for human review).
+- Structural validator raising `StixValidationError` for missing
+  required fields, wrong top-level kinds, etc. Implemented to keep us
+  off the optional `stix2` runtime dep.
+
+**TAXII 2.1 read server** (`src/honeytrap/api/taxii.py`):
+
+- Mounted on the existing management-API server so it inherits API-key
+  auth, RBAC, audit, and rate-limiting.
+- Endpoints: `/taxii/2.1/` (discovery), `/taxii/2.1/honeytrap/`
+  (root), `/honeytrap/collections/`, `/honeytrap/collections/{id}/`,
+  `/honeytrap/collections/{id}/objects/`,
+  `/honeytrap/collections/{id}/objects/{oid}/`,
+  `/honeytrap/collections/{id}/manifest/`,
+  `/honeytrap/status/{status_id}/`.
+- Five collections (stable ids) split by SDO family:
+  `indicators`, `attack-patterns`, `observed-data`, `sightings`,
+  `notes`.
+- Filters: `match[id]`, `match[type]`, `added_after`, `limit`, `next`.
+- Returns the spec-mandated `application/taxii+json;version=2.1`
+  content type via a dedicated `_taxii_response()` helper rather than
+  the JSON helper.
+
+**Pluggable log sinks** (`src/honeytrap/sinks/`):
+
+- `pipeline.py` — `LogPipeline` with a bounded `asyncio.Queue`
+  (capacity 10,000), three overflow policies (`drop_oldest` default,
+  `drop_new`, `block`), per-sink batcher + breaker + worker.
+- `batcher.py` — `Batcher(max_size=500, window_seconds=1.0)`.
+- `retry.py` — `RetryPolicy(0.25..30s, 5 attempts, 10% jitter)` and
+  `CircuitBreaker(threshold=10, cooldown=30s)` with closed / half-open
+  / open states.
+- `ecs.py` — `event_to_ecs(event)` projection to ECS v8.x; honeypot
+  fields nest under `honeypot.*`.
+- `elasticsearch.py` / `opensearch.py` — bulk-API `_bulk` POST,
+  `{+YYYY.MM.dd}` index placeholders, `install_template` boot path,
+  honors `Retry-After` on 429, raises on partial errors.
+- `splunk_hec.py` — HEC envelope wrap, token from env var, raises on
+  non-zero `code`.
+- `file_jsonl.py` — daily-rotated NDJSON file with an `asyncio.Lock`
+  to serialize writes.
+- `_http.py` — stdlib `urllib.request` POST wrapped in
+  `asyncio.to_thread`, URL allow-list (http/https), 1 MB response cap,
+  `HttpError` carrying optional `retry_after`.
+- Factory `build_sink(spec)` dispatches by `type`.
+
+**CLI** (`src/honeytrap/sinks/cli.py`, `src/honeytrap/forensics/cli.py`):
+
+- `honeytrap sinks test <name>` — synthesises a deterministic event
+  and pushes it through one configured sink.
+- `honeytrap sinks health [--json]` — prints per-sink state.
+- `honeytrap export stix --session/--ip/--since/--until --out [--pretty]`
+  — write a STIX 2.1 bundle to disk.
+
+**API** (additions to `src/honeytrap/api/server.py`,
+`src/honeytrap/api/service.py`):
+
+- `GET /api/v1/intel/stix?session_id=&ip=&since=&until=` (analyst).
+- `GET /api/v1/sinks` (viewer) — list of `SinkHealth` records.
+- `POST /api/v1/sinks/{name}/flush` (admin) — manual flush trigger.
+- `HoneytrapService` Protocol gains `stix_sessions`, `stix_iocs`,
+  `stix_techniques`, `stix_tls_matches`, `sinks_health`, `sinks_flush`
+  with corresponding `InMemoryService` implementations + setters.
+
+**Config** (`src/honeytrap/core/config.py`):
+
+- New `SinksConfigRaw` block under `Config.sinks`:
+  `enabled` / `queue_capacity` / `on_overflow` / `targets[]`.
+
+**Metrics**:
+
+- `honeytrap_stix_bundles_generated_total` (counter)
+- `honeytrap_stix_objects_total{type}` (counter)
+- `honeytrap_taxii_requests_total{endpoint,status}` (counter)
+- `honeytrap_sink_events_total{sink}` (counter)
+- `honeytrap_sink_dropped_total{sink,reason}` (counter)
+- `honeytrap_sink_send_duration_seconds{sink}` (histogram)
+- `honeytrap_sink_queue_depth{sink}` (gauge)
+- `honeytrap_sink_circuit_state{sink}` (gauge)
+
+**Tests** (new, 58 total): 370 -> 428 passing.
+
+- `tests/intel/stix/test_builder.py` (12): pattern helpers, dispatcher,
+  identity seeding, dedup, ATT&CK external refs, session
+  relationships, TLS note custom fields, validator rejections,
+  serializer stability, object_count_by_type, spec_version.
+- `tests/sinks/test_pipeline.py` (10): batcher size+window triggers,
+  pipeline single-batch delivery, drop_oldest, drop_new, retry
+  recovery, breaker open after threshold, half-open after cooldown,
+  shutdown drains buffer, health snapshot, flush_now, retry-delay
+  bounds.
+- `tests/sinks/test_sinks_io.py` (14): ECS basic mapping, None drops,
+  bulk payload rendering, ES post + 429 retry-after + partial errors,
+  OpenSearch inheritance, HEC envelope + auth + non-zero code, file
+  JSONL write + rotation, factory dispatch + missing-url error.
+- `tests/sinks/test_cli.py` (3): synthetic round-trip, unknown sink
+  error, JSON health output.
+- `tests/api/test_intel_stix.py` (11): RBAC enforcement, bundle shape,
+  `session_id` filter, `ip` filter, TAXII discovery + content-type,
+  root + collections, objects scoped to collection types, paginated
+  objects with `next`, unknown collection 404, manifest shape, status
+  endpoint, anonymous request rejected.
+- `tests/api/test_sinks_endpoints.py` (4): sinks list, auth required,
+  flush requires admin, flush returns count.
+- `tests/forensics/test_export_cli.py` (2 new): `export stix` writes a
+  valid bundle, no-match returns exit code 1.
+
+**Zero new runtime dependencies.** The STIX builder, TAXII server, and
+HTTP sinks all use stdlib only (`urllib.request`, `asyncio.to_thread`,
+`uuid.uuid5`, `json`). Secrets are read from environment variables
+exclusively (`api_key_env`, `username_env`/`password_env`,
+`SPLUNK_HEC_TOKEN`).
+
+**STIX edge cases noted for future work**:
+
+- Patterns currently quote single quotes by escaping; double-quote
+  field literals are not supported (matches MISP / Anomali behaviour
+  but rejects exotic indicators).
+- `validate_object` is intentionally lightweight — required fields and
+  type strings only. A full CTI-2.1 schema check still requires the
+  optional `stix2` package.
+- `stix_from_attck` accepts both bare technique strings (`"T1110"`)
+  and dicts (`{"id": "T1110", "name": ...}`); sub-techniques like
+  `T1110.001` work but the kill-chain phase mapping is best-effort
+  when no `tactic` is supplied.
+
+**TAXII edge cases noted**:
+
+- The state cache is rebuilt on every request. Fine for tens of
+  thousands of objects; a long-poll subscriber pulling thousands of
+  pages per minute should be paginated server-side or moved behind a
+  CDN. The shape is right but the cache strategy is naive.
+- `match[*]` parameters use OR semantics within a key. Cross-key
+  semantics (intersection) match the spec.

@@ -172,3 +172,21 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] CLI: `--ai-enabled/--no-ai`, `--ai-backend`, `--ai-dry-run`, and `honeytrap ai test` subcommand
 - [x] `ai:` config block with `adaptive_enabled`, memory/intent/cache toggles, backends list, `redact_secrets_in_prompts`, `force_backend`
 - [x] 48 new tests under `tests/ai/` covering memory, intent, cache, each backend, adapter shape + safety paths, and all three API endpoints
+
+## Phase 14 — Threat Intel Sharing & SIEM Integration (Cycle 12, 2026-04-23)
+
+- [x] STIX 2.1 bundle generator under `honeytrap.intel.stix` with deterministic UUID5 IDs and natural-key dedup
+- [x] STIX SDOs: identity, indicator, observed-data, attack-pattern, malware, campaign, infrastructure, note (with `x_ja3` / `x_ja4` custom properties)
+- [x] STIX SROs: relationship and sighting wiring sessions, campaigns, IOCs, and ATT&CK techniques
+- [x] Stdlib-only structural validator raising `StixValidationError`
+- [x] TAXII 2.1 read-only server mounted at `/taxii/2.1` reusing the management-API auth, RBAC, audit, and rate-limiting
+- [x] TAXII discovery, root, collections, objects (paginated via `next` / `limit` / `added_after` / `match[*]`), single-object, manifest, status endpoints
+- [x] Five stable-id collections split by SDO family (indicators, attack-patterns, observed-data, sightings, notes)
+- [x] Pluggable log-sink pipeline: bounded queue (10,000), `drop_oldest`/`drop_new`/`block` overflow, batcher (500 / 1 s), retry (0.25 s..30 s, 5 attempts, jitter), circuit breaker (10 failures / 30 s cooldown)
+- [x] Sinks: `elasticsearch` (bulk API + index template + 429 Retry-After), `opensearch` subclass, `splunk_hec` (envelope + token from env), `file_jsonl` (daily rotation)
+- [x] ECS v8.x mapper used by ES/OS sinks and (by default) the JSONL sink
+- [x] CLI: `honeytrap sinks test <name>`, `honeytrap sinks health [--json]`, `honeytrap export stix --session/--ip/--since/--until --out [--pretty]`
+- [x] API: `GET /api/v1/intel/stix` (analyst), `GET /api/v1/sinks` (viewer), `POST /api/v1/sinks/{name}/flush` (admin)
+- [x] Metrics: `honeytrap_stix_bundles_generated_total`, `honeytrap_stix_objects_total{type}`, `honeytrap_taxii_requests_total{endpoint,status}`, `honeytrap_sink_events_total`, `honeytrap_sink_dropped_total{sink,reason}`, `honeytrap_sink_send_duration_seconds`, `honeytrap_sink_queue_depth`, `honeytrap_sink_circuit_state`
+- [x] Secrets only via env vars (`api_key_env`, `username_env`/`password_env`, `SPLUNK_HEC_TOKEN`)
+- [x] 58 new tests covering builder, validator, pipeline, retry, breaker, ECS mapping, ES/HEC/JSONL IO, factory dispatch, CLI, and STIX/TAXII/sinks API endpoints

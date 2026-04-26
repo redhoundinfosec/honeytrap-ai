@@ -105,3 +105,31 @@ def test_export_pcap_no_match_returns_error(tmp_path: Path, capsys) -> None:
     args = _parser().parse_args(["export", "pcap", "--session", "missing", "--out", str(out)])
     code = run_export(args, _config(tmp_path))
     assert code == 1
+
+
+def test_export_stix_writes_bundle(tmp_path: Path, capsys) -> None:
+    """``export stix`` produces a valid STIX 2.1 JSON bundle."""
+    import json as _json
+
+    _populate(tmp_path)
+    out = tmp_path / "bundle.json"
+    args = _parser().parse_args(
+        ["export", "stix", "--session", "cli1", "--out", str(out), "--pretty"]
+    )
+    code = run_export(args, _config(tmp_path))
+    assert code == 0
+    data = _json.loads(out.read_text(encoding="utf-8"))
+    assert data["type"] == "bundle"
+    assert data["id"].startswith("bundle--")
+    types = {obj["type"] for obj in data["objects"]}
+    assert {"identity", "infrastructure", "campaign"}.issubset(types)
+
+
+def test_export_stix_no_match_returns_error(tmp_path: Path, capsys) -> None:
+    _populate(tmp_path)
+    out = tmp_path / "bundle.json"
+    args = _parser().parse_args(
+        ["export", "stix", "--session", "nope", "--out", str(out)]
+    )
+    code = run_export(args, _config(tmp_path))
+    assert code == 1

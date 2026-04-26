@@ -72,6 +72,22 @@ def build_export_parser(subparsers: argparse._SubParsersAction) -> None:
     listing.add_argument("--since", help="ISO timestamp lower bound (inclusive).")
     listing.add_argument("--until", help="ISO timestamp upper bound (inclusive).")
 
+    stix = export_sub.add_parser("stix", help="Export a STIX 2.1 bundle.")
+    stix.add_argument("--session", help="Session id to bundle.")
+    stix.add_argument("--ip", help="Filter sessions by attacker IP.")
+    stix.add_argument("--since", help="ISO timestamp lower bound (inclusive).")
+    stix.add_argument("--until", help="ISO timestamp upper bound (inclusive).")
+    stix.add_argument(
+        "--out",
+        required=True,
+        help="Output path for the STIX 2.1 JSON bundle.",
+    )
+    stix.add_argument(
+        "--pretty",
+        action="store_true",
+        help="Pretty-print the JSON (default is compact).",
+    )
+
 
 def _attach_filters(parser: argparse.ArgumentParser) -> None:
     """Add the shared session/ip/since/until filter flags."""
@@ -113,6 +129,8 @@ def run_export(args: argparse.Namespace, cfg: Config) -> int:
             return _cmd_timeline(args, cfg, store)
         if cmd == "list":
             return _cmd_list(args, cfg, store)
+        if cmd == "stix":
+            return _cmd_stix(args, cfg, store)
     finally:
         store.close()
     return 2
@@ -205,6 +223,46 @@ def _cmd_list(args: argparse.Namespace, cfg: Config, store: SessionStore) -> int
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _cmd_stix(args: argparse.Namespace, cfg: Config, store: SessionStore) -> int:
+    """Build and persist a STIX 2.1 bundle from session metadata."""
+    del cfg  # not currently consulted
+    from honeytrap.api.taxii import build_bundle_from_service
+    from honeytrap.intel.stix.serializer import dump_compact, dump_pretty
+
+    if args.session:
+        meta = store.get_metadata(args.session)
+        sessions = [meta] if meta is not None else []
+    else:
+        since = _parse_iso(args.since) if args.since else None
+        until = _parse_iso(args.until) if args.until else None
+        sessions = store.list_sessions(ip=args.ip, since=since, until=until)
+    if not sessions:
+        sys.stderr.write("No matching sessions found.\n")
+        return 1
+    session_dicts = [
+        {
+            "session_id": s.session_id,
+            "protocol": s.protocol,
+            "remote_ip": s.remote_ip,
+            "remote_port": s.remote_port,
+            "local_port": s.local_port,
+            "started_at": s.started_at.isoformat() if s.started_at else None,
+            "ended_at": s.ended_at.isoformat() if s.ended_at else None,
+            "bytes_in": s.bytes_in,
+            "bytes_out": s.bytes_out,
+        }
+        for s in sessions
+    ]
+    builder = build_bundle_from_service(sessions=session_dicts)
+    bundle = builder.build()
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    rendered = dump_pretty(bundle) if getattr(args, "pretty", False) else dump_compact(bundle)
+    out.write_text(rendered, encoding="utf-8")
+    print(f"STIX 2.1 bundle written to {out} ({len(bundle['objects'])} objects)")
+    return 0
 
 
 def _collect_flows(args: argparse.Namespace, store: SessionStore) -> list[SessionFlow]:
