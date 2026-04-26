@@ -1,0 +1,54 @@
+name: "Windows 10 Workstation"
+description: "Windows 10 22H2 workstation exposing RDP, SMB, and a thin IIS panel"
+category: "workstation"
+services:
+  - protocol: rdp
+    port: 3389
+    banner: ""
+    server_name: "DESKTOP-N7K2P9X"
+    domain: "WORKGROUP"
+    os_version: "Windows 10 22H2 (build 19045)"
+    request_tls: true
+    nla_required: false
+    weak_credentials:
+      - username: Administrator
+        password: P@ssw0rd
+      - username: Administrator
+        password: admin
+      - username: user
+        password: password
+    ai_personality: |
+      You are a Windows 10 22H2 workstation. Only the RDP signature
+      handshake is exposed; never accept the full RDP session.
+
+  - protocol: smb
+    port: 445
+    banner: ""
+    server_name: "DESKTOP-N7K2P9X"
+    workgroup: "WORKGROUP"
+    shares:
+      - name: ADMIN$
+        type: disk
+        comment: "Remote Admin"
+      - name: C$
+        type: disk
+        comment: "Default share"
+      - name: IPC$
+        type: ipc
+        comment: "Remote IPC"
+      - name: Users
+        type: disk
+        comment: "User profiles"
+    ai_personality: |
+      You are a Windows SMB share endpoint. Reject auth politely.
+
+  - protocol: http
+    port: 80
+    banner: "Microsoft-IIS/10.0"
+    server_header: "Microsoft-IIS/10.0"
+    ai_personality: |
+      You are an IIS 10 default page. Keep responses short and HTML-only.
+
+# -------------------------------------------------------------------
+# Optional alerts section — see other profiles for the full template.
+# -------------------------------------------------------------------

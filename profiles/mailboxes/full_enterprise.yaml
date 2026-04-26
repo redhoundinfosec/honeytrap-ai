@@ -1,0 +1,38 @@
+messages:
+  - uid: 1
+    from: "ceo@corp.example.com"
+    to: "all-staff@corp.example.com"
+    subject: "All-hands Friday — agenda"
+    date: "Mon, 06 Apr 2026 09:00:00 +0000"
+    body: |
+      Quick reminder that we have all-hands at 14:00 EST. Agenda will land
+      Wednesday from comms@corp.example.com.
+  - uid: 2
+    from: "comms@corp.example.com"
+    to: "all-staff@corp.example.com"
+    subject: "All-hands agenda + Q1 wrap"
+    date: "Wed, 08 Apr 2026 17:32:11 +0000"
+    body: |
+      Attached is the agenda for Friday's all-hands and the Q1 wrap deck.
+  - uid: 3
+    from: "support@vendor.example.net"
+    to: "ops@corp.example.com"
+    subject: "Renewal quote 20260415-A"
+    date: "Fri, 10 Apr 2026 22:15:08 +0000"
+    body: |
+      Please find attached your annual renewal quote. Reply by 2026-05-01.
+  - uid: 4
+    from: "alerts@grafana.corp.example.com"
+    to: "oncall@corp.example.com"
+    subject: "[FIRING] db-prod replica lag > 60s"
+    date: "Sun, 19 Apr 2026 03:14:07 +0000"
+    body: |
+      A Grafana alert is firing. Replica lag breached the 60s threshold.
+      Runbook: https://wiki.corp.example.com/runbooks/db-replica-lag
+  - uid: 5
+    from: "hr@corp.example.com"
+    to: "all-staff@corp.example.com"
+    subject: "Updated PTO policy"
+    date: "Mon, 20 Apr 2026 13:00:00 +0000"
+    body: |
+      Effective 2026-05-01, the PTO carryover cap increases to 80 hours.

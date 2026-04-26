@@ -22,16 +22,12 @@ _URL_RE = re.compile(
     re.I,
 )
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-_IPV6_RE = re.compile(
-    r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{0,4}\b"
-)
+_IPV6_RE = re.compile(r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{0,4}\b")
 _DOMAIN_RE = re.compile(
     r"\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\b",
     re.I,
 )
-_EMAIL_RE = re.compile(
-    r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}\b"
-)
+_EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}\b")
 _HASH_RES: dict[str, re.Pattern[str]] = {
     "md5": re.compile(r"\b[a-f0-9]{32}\b", re.I),
     "sha1": re.compile(r"\b[a-f0-9]{40}\b", re.I),
@@ -131,7 +127,24 @@ class IOCExtractor:
             (event.get("user_agent"), f"{context_proto}:user_agent"),
         ]
         data = event.get("data") or {}
-        for key in ("body", "payload", "raw", "host", "referer", "command"):
+        for key in (
+            "body",
+            "payload",
+            "raw",
+            "host",
+            "referer",
+            "command",
+            "topic",
+            "will_topic",
+            "will_payload",
+            "client_id",
+            "uri_path",
+            "uri_query",
+            "workstation",
+            "domain",
+            "mstshash",
+            "cookie",
+        ):
             if key in data:
                 fields.append((data.get(key), f"{context_proto}:data.{key}"))
 
@@ -143,36 +156,48 @@ class IOCExtractor:
         # User-agent itself is an IOC (fingerprints attacker tools).
         ua = event.get("user_agent")
         if ua:
-            results.append(self._add(IOC(
-                type="user_agent",
-                value=str(ua),
-                context=f"{context_proto}:user_agent",
-                session_id=session_id,
-                confidence=0.6,
-            )))
+            results.append(
+                self._add(
+                    IOC(
+                        type="user_agent",
+                        value=str(ua),
+                        context=f"{context_proto}:user_agent",
+                        session_id=session_id,
+                        confidence=0.6,
+                    )
+                )
+            )
 
         # The attacker IP itself is always an IOC.
         remote_ip = event.get("remote_ip")
         if remote_ip:
-            results.append(self._add(IOC(
-                type="ip",
-                value=str(remote_ip),
-                context=f"{context_proto}:remote_ip",
-                session_id=session_id,
-                confidence=1.0,
-            )))
+            results.append(
+                self._add(
+                    IOC(
+                        type="ip",
+                        value=str(remote_ip),
+                        context=f"{context_proto}:remote_ip",
+                        session_id=session_id,
+                        confidence=1.0,
+                    )
+                )
+            )
 
         # Host header as a domain IOC (honeypot dns hit).
         host = data.get("host") if isinstance(data, dict) else None
         if host and not _IPV4_RE.fullmatch(str(host).split(":")[0]):
             domain = str(host).split(":")[0].lower()
             if domain not in _IGNORED_DOMAINS:
-                results.append(self._add(IOC(
-                    type="domain",
-                    value=domain,
-                    context=f"{context_proto}:host",
-                    session_id=session_id,
-                )))
+                results.append(
+                    self._add(
+                        IOC(
+                            type="domain",
+                            value=domain,
+                            context=f"{context_proto}:host",
+                            session_id=session_id,
+                        )
+                    )
+                )
 
         # TLS SNI as a domain IOC (attacker tooling often leaks
         # target hostnames in ClientHello even when a handshake
@@ -182,16 +207,22 @@ class IOCExtractor:
             sni = tls_fp.get("sni")
             if sni:
                 sni_lower = str(sni).split(":")[0].lower()
-                if sni_lower and sni_lower not in _IGNORED_DOMAINS and not _IPV4_RE.fullmatch(
+                if (
                     sni_lower
+                    and sni_lower not in _IGNORED_DOMAINS
+                    and not _IPV4_RE.fullmatch(sni_lower)
                 ):
-                    results.append(self._add(IOC(
-                        type="domain",
-                        value=sni_lower,
-                        context=f"{context_proto}:tls_sni",
-                        session_id=session_id,
-                        confidence=0.9,
-                    )))
+                    results.append(
+                        self._add(
+                            IOC(
+                                type="domain",
+                                value=sni_lower,
+                                context=f"{context_proto}:tls_sni",
+                                session_id=session_id,
+                                confidence=0.9,
+                            )
+                        )
+                    )
 
         return [ioc for ioc in results if ioc is not None]
 
@@ -223,13 +254,15 @@ class IOCExtractor:
     ) -> IOC:
         """Hash a raw payload and record the resulting SHA256 as an IOC."""
         digest = self.compute_hash(payload, algorithm="sha256")
-        return self._add(IOC(
-            type="hash",
-            value=digest,
-            context=context,
-            session_id=session_id,
-            confidence=1.0,
-        ))
+        return self._add(
+            IOC(
+                type="hash",
+                value=digest,
+                context=context,
+                session_id=session_id,
+                confidence=1.0,
+            )
+        )
 
     # ------------------------------------------------------------------
     # Accessors
@@ -252,9 +285,7 @@ class IOCExtractor:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
-    def _extract_from_text(
-        self, text: str, context: str, session_id: str
-    ) -> list[IOC]:
+    def _extract_from_text(self, text: str, context: str, session_id: str) -> list[IOC]:
         results: list[IOC] = []
 
         # URLs first so their embedded domain/IP gets scooped up too.

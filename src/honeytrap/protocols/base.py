@@ -203,5 +203,9 @@ class ProtocolHandler(ABC):
             "smb": timeouts.smb_idle,
             "smtp": timeouts.smtp_idle,
             "mysql": timeouts.mysql_idle,
+            "imap": timeouts.imap_idle,
+            "rdp": timeouts.rdp_idle,
+            "mqtt": timeouts.mqtt_idle,
+            "coap": timeouts.coap_idle,
         }
         return float(mapping.get(self.name, 120.0))

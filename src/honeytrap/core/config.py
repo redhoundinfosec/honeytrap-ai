@@ -115,6 +115,10 @@ class TimeoutsConfig:
     smb_idle: float = 60.0
     smtp_idle: float = 300.0
     mysql_idle: float = 120.0
+    imap_idle: float = 300.0
+    rdp_idle: float = 30.0
+    mqtt_idle: float = 120.0
+    coap_idle: float = 30.0
 
 
 @dataclass

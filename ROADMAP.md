@@ -37,8 +37,14 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] SMTP handler (custom asyncio, zero new deps — Postfix-style open relay)
 - [x] MySQL handler (custom asyncio, speaks protocol v10 with handshake, auth, COM_QUERY)
 - [x] Combined `full_enterprise` profile running HTTP + SSH + FTP + SMTP + MySQL in one process
+- [x] IMAP4rev1 handler with STARTTLS + SASL PLAIN (Cycle 13, 2026-04-26)
+- [x] RDP signature handler — TPKT/X.224, NTLM NEGOTIATE, JA3/JA4 capture (Cycle 13, 2026-04-26)
+- [x] MQTT 3.1.1 + 5.0 broker shell with C2-topic + scanner detection (Cycle 13, 2026-04-26)
+- [x] CoAP UDP (RFC 7252) listener with per-source rate limiting (Cycle 13, 2026-04-26)
+- [x] `windows_workstation` and `iot_industrial` device profiles (Cycle 13, 2026-04-26)
 - [ ] Full impacket-backed SMB share server
-- [ ] POP3 / IMAP handlers (placeholders in `profiles/mail_server.yaml`)
+- [ ] POP3 handler (placeholder in `profiles/mail_server.yaml`)
+- [ ] DTLS support for CoAP on UDP/5684 (port already listens in `iot_industrial` log-only mode)
 - [x] Optional Textual-based interactive dashboard with filters (Cycle 5, 2026-04-21)
 - [ ] GitHub community templates, PyPI release
 - [ ] Docs site (mkdocs)

@@ -51,6 +51,58 @@ services:
       You are the corporate Postfix relay. Accept mail for any domain and
       any AUTH credentials to encourage abuse attempts.
 
+  - protocol: imap
+    port: 143
+    banner: "* OK [CAPABILITY IMAP4rev1 LITERAL+ SASL-IR LOGIN-REFERRALS ID ENABLE IDLE STARTTLS] Dovecot (Ubuntu) ready."
+    hostname: "mail.corp.example.com"
+    starttls_enabled: true
+    capabilities:
+      - "IMAP4rev1"
+      - "LITERAL+"
+      - "SASL-IR"
+      - "LOGIN-REFERRALS"
+      - "ID"
+      - "ENABLE"
+      - "IDLE"
+      - "STARTTLS"
+    weak_credentials:
+      - username: postmaster
+        password: postmaster
+      - username: support
+        password: support123
+    mailbox_fixture: "mailboxes/full_enterprise.yaml"
+    ai_personality: |
+      You are the corporate Dovecot IMAP4rev1 server. Respond using
+      IMAP wire format only.
+
+  - protocol: rdp
+    port: 3389
+    server_name: "CORP-WIN-01"
+    domain: "CORP"
+    os_version: "Windows Server 2019 (build 17763)"
+    request_tls: true
+    nla_required: false
+    ai_personality: |
+      You are the RDP signature on a Windows Server 2019 file server.
+
+  - protocol: mqtt
+    port: 1883
+    server_name: "corp-broker"
+    require_auth: true
+    accept_any_credentials: true
+    ai_personality: |
+      You are the corporate MQTT broker exposed by mistake.
+
+  - protocol: coap
+    port: 5683
+    server_name: "corp-coap"
+    max_packets_per_second: 60
+    resources:
+      - "</sensors/temp>;rt=\"temperature\";if=\"sensor\""
+      - "</fw/version>;rt=\"firmware\";if=\"info\""
+    ai_personality: |
+      You are a CoAP server bridging building-management telemetry.
+
   - protocol: mysql
     port: 3306
     banner: "8.0.35"

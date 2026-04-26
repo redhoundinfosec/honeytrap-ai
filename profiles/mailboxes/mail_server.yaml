@@ -1,0 +1,22 @@
+messages:
+  - uid: 1
+    from: "hr@example.com"
+    to: "support@mail.example.com"
+    subject: "Welcome aboard"
+    date: "Mon, 06 Apr 2026 10:11:23 +0000"
+    body: |
+      Welcome to the team. Reach out if you need anything during onboarding.
+  - uid: 2
+    from: "finance@example.com"
+    to: "support@mail.example.com"
+    subject: "Q1 invoice 20260331"
+    date: "Wed, 08 Apr 2026 14:02:55 +0000"
+    body: |
+      Invoice attached for Q1 services. Net-30 terms apply.
+  - uid: 3
+    from: "newsletter@example.com"
+    to: "support@mail.example.com"
+    subject: "Weekly digest"
+    date: "Mon, 20 Apr 2026 06:00:00 +0000"
+    body: |
+      This week in product updates: nothing newsworthy. Happy reading.

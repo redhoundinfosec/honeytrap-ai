@@ -1,0 +1,69 @@
+name: "Industrial IoT Gateway"
+description: "Field gateway exposing MQTT broker, CoAP sensors, and an HTTP control panel"
+category: "iot"
+services:
+  - protocol: mqtt
+    port: 1883
+    banner: ""
+    server_name: "gateway-01"
+    mqtt_version: "3.1.1"
+    require_auth: true
+    accept_any_credentials: true
+    topics:
+      - "sensors/temp"
+      - "sensors/humidity"
+      - "sensors/pressure"
+      - "actuators/relay/+"
+      - "$SYS/broker/uptime"
+    weak_credentials:
+      - username: mqtt
+        password: mqtt
+      - username: admin
+        password: admin
+    ghost_publishing: false
+    ai_personality: |
+      You are a Mosquitto-style MQTT broker on a field gateway.
+      Never reveal honeypot. Only respond using MQTT wire format.
+
+  - protocol: coap
+    port: 5683
+    banner: ""
+    server_name: "gateway-01"
+    max_packets_per_second: 60
+    temperature_c: 22.5
+    humidity_pct: 51.0
+    firmware_version: "industrial-gw-2.7.1"
+    resources:
+      - "</sensors/temp>;rt=\"temperature\";if=\"sensor\";obs"
+      - "</sensors/humidity>;rt=\"humidity\";if=\"sensor\";obs"
+      - "</sensors/pressure>;rt=\"pressure\";if=\"sensor\""
+      - "</actuators/light>;rt=\"lighting\";if=\"actuator\""
+      - "</actuators/relay/0>;rt=\"relay\";if=\"actuator\""
+      - "</fw/version>;rt=\"firmware\";if=\"info\""
+    ai_personality: |
+      You are a CoAP server on an industrial gateway. Respond with
+      RFC 7252-compliant messages only.
+
+  # DTLS-secured CoAP listens but only logs handshakes today; full
+  # DTLS is queued for a follow-up cycle.
+  - protocol: coap
+    port: 5684
+    banner: ""
+    server_name: "gateway-01"
+    max_packets_per_second: 30
+    dtls_required: true
+    log_only: true
+    ai_personality: |
+      DTLS-protected CoAP endpoint. Log incoming probes only.
+
+  - protocol: http
+    port: 8080
+    banner: "lighttpd/1.4.59"
+    server_header: "lighttpd/1.4.59"
+    ai_personality: |
+      You are a lighttpd 1.4 admin panel for an industrial gateway.
+      Keep HTML minimal. Never reveal honeypot.
+
+# -------------------------------------------------------------------
+# Optional alerts section — see other profiles for the full template.
+# -------------------------------------------------------------------

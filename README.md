@@ -11,7 +11,7 @@
 
 ## ✨ Features
 
-- 🌐 **Multi-protocol honeypots** — HTTP, SSH, FTP, SMB (plus optional SMTP, Telnet, MySQL)
+- 🌐 **Multi-protocol honeypots** — 11 protocols: HTTP, SSH, FTP, SMB, Telnet, SMTP, MySQL, IMAP4, RDP (signature), MQTT, CoAP
 - 🤖 **AI-driven responses** — Rule-based engine + optional LLM (OpenAI / Ollama / custom endpoints)
 - 🗺️ **Geo-aware personalities** — Attacker sees a different server personality based on their origin country
 - 📊 **Live terminal dashboard** — Built on Rich/Textual, real-time connection visualization
@@ -46,14 +46,17 @@ honeytrap
 
   What device would you like to simulate?
 
-  [1] 🌐 Web Server       — Apache with exposed admin panels (HTTP/SSH)
-  [2] 📁 File Share       — NAS with open SMB shares (SMB/FTP)
-  [3] 📷 IoT Camera       — IP camera with default creds (HTTP/Telnet)
-  [4] 🗄️  Database Server — MySQL with phpMyAdmin (MySQL/HTTP/SSH)
-  [5] 📧 Mail Server      — Open relay mail server (SMTP/POP3/IMAP)
-  [6] 🔧 Custom           — Load a custom profile YAML
+  [1] 🌐 Web Server          — Apache with exposed admin panels (HTTP/SSH)
+  [2] 📁 File Share          — NAS with open SMB shares (SMB/FTP)
+  [3] 📷 IoT Camera          — IP camera with default creds (HTTP/Telnet)
+  [4] 🗄️  Database Server    — MySQL with phpMyAdmin (MySQL/HTTP/SSH)
+  [5] 📧 Mail Server         — Open relay + IMAP (SMTP/IMAP)
+  [6] 🪟 Windows Workstation — RDP signature + SMB + IIS
+  [7] 🏭 IoT Industrial      — Field gateway (MQTT + CoAP + HTTP)
+  [8] 🏢 Full Enterprise     — All 11 protocols on one host
+  [9] 🔧 Custom              — Load a custom profile YAML
 
-  Select [1-6]: 1
+  Select [1-9]: 1
 
   AI Response Engine:
   [1] Offline (rule-based only)

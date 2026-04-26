@@ -408,6 +408,137 @@ def rule_tls_fingerprint(event: dict[str, Any], ctx: AlertRuleContext) -> list[A
     return alerts
 
 
+_MQTT_C2_TOPIC_MARKERS = ("/cmd", "/exec", "/ota", "/firmware/upload", "/c2", "/control")
+_COAP_SENSITIVE_PATHS = (
+    "config",
+    "credential",
+    "secret",
+    "token",
+    "fw/upload",
+    "fw/update",
+    "firmware/upload",
+)
+
+
+def rule_rdp_scanner_cookie(event: dict[str, Any], ctx: AlertRuleContext) -> list[Alert]:
+    """Emit a MEDIUM alert when an RDP CR-TPDU cookie looks scanner-generated."""
+    if _event_field(event, "protocol") != "rdp":
+        return []
+    if _event_field(event, "event_type") not in {"x224_connect_request", "connection_request"}:
+        return []
+    data = event.get("data") or {}
+    if not bool(data.get("scanner_like_cookie")):
+        return []
+    cookie = str(data.get("mstshash") or data.get("cookie") or "")
+    return [
+        Alert(
+            title="RDP scanner cookie observed",
+            summary=f"mstshash={cookie[:64]} matches a known scanner pattern",
+            severity=AlertSeverity.MEDIUM,
+            attck_techniques=_collect_techniques(event),
+            iocs=_collect_iocs(event),
+            tags={"rdp-scanner", "reconnaissance"},
+            **_base_alert(event),
+        )
+    ]
+
+
+def rule_mqtt_c2_topic(event: dict[str, Any], ctx: AlertRuleContext) -> list[Alert]:
+    """Emit a HIGH alert when an MQTT publish/subscribe targets a C2-style topic."""
+    if _event_field(event, "protocol") != "mqtt":
+        return []
+    if _event_field(event, "event_type") not in {"publish", "subscribe"}:
+        return []
+    topic = str((event.get("data") or {}).get("topic") or "").lower()
+    if not topic:
+        return []
+    if not any(marker in topic for marker in _MQTT_C2_TOPIC_MARKERS):
+        return []
+    return [
+        Alert(
+            title="MQTT command-and-control topic targeted",
+            summary=f"{_event_field(event, 'event_type')} on suspicious topic {topic[:80]}",
+            severity=AlertSeverity.HIGH,
+            attck_techniques=_collect_techniques(event),
+            iocs=_collect_iocs(event),
+            tags={"mqtt-c2", "command-control"},
+            **_base_alert(event),
+        )
+    ]
+
+
+def rule_mqtt_scanner_client(event: dict[str, Any], ctx: AlertRuleContext) -> list[Alert]:
+    """Emit a MEDIUM alert when an MQTT CONNECT carries a scanner-style client_id."""
+    if _event_field(event, "protocol") != "mqtt":
+        return []
+    if _event_field(event, "event_type") not in {"mqtt_connect", "connect"}:
+        return []
+    data = event.get("data") or {}
+    if not bool(data.get("scanner_like_client_id")) and not bool(data.get("empty_client_id")):
+        return []
+    client_id = str(data.get("client_id") or "")
+    return [
+        Alert(
+            title="MQTT scanner client_id",
+            summary=f"client_id={client_id!r} matches a scanner pattern",
+            severity=AlertSeverity.MEDIUM,
+            attck_techniques=_collect_techniques(event),
+            iocs=_collect_iocs(event),
+            tags={"mqtt-scanner", "reconnaissance"},
+            **_base_alert(event),
+        )
+    ]
+
+
+def rule_coap_sensitive_path(event: dict[str, Any], ctx: AlertRuleContext) -> list[Alert]:
+    """Emit a MEDIUM alert when a CoAP request targets a config/firmware-style path."""
+    if _event_field(event, "protocol") != "coap":
+        return []
+    if _event_field(event, "event_type") not in {"coap_request", "request"}:
+        return []
+    data = event.get("data") or {}
+    uri_path = str(data.get("uri_path") or _event_field(event, "path") or "").lower()
+    if not uri_path:
+        return []
+    if not any(marker in uri_path for marker in _COAP_SENSITIVE_PATHS):
+        return []
+    return [
+        Alert(
+            title="CoAP sensitive path requested",
+            summary=f"CoAP request targeted {uri_path[:80]}",
+            severity=AlertSeverity.MEDIUM,
+            attck_techniques=_collect_techniques(event),
+            iocs=_collect_iocs(event),
+            tags={"coap-sensitive-path"},
+            **_base_alert(event),
+        )
+    ]
+
+
+def rule_coap_amplification(event: dict[str, Any], ctx: AlertRuleContext) -> list[Alert]:
+    """Emit a HIGH alert when a CoAP request looks like a reflection/amplification probe."""
+    if _event_field(event, "protocol") != "coap":
+        return []
+    if _event_field(event, "event_type") not in {"amplification_probe", "amplification"}:
+        return []
+    data = event.get("data") or {}
+    ratio = data.get("amplification_ratio")
+    return [
+        Alert(
+            title="CoAP amplification probe",
+            summary=(
+                f"Suspicious CoAP request with amplification ratio "
+                f"{ratio if ratio is not None else 'unknown'}"
+            ),
+            severity=AlertSeverity.HIGH,
+            attck_techniques=_collect_techniques(event),
+            iocs=_collect_iocs(event),
+            tags={"coap-amplification", "reflection"},
+            **_base_alert(event),
+        )
+    ]
+
+
 DEFAULT_RULES: tuple[RuleFn, ...] = (
     rule_first_seen_ip,
     rule_brute_force,
@@ -417,6 +548,11 @@ DEFAULT_RULES: tuple[RuleFn, ...] = (
     rule_malicious_ioc,
     rule_critical_techniques,
     rule_tls_fingerprint,
+    rule_rdp_scanner_cookie,
+    rule_mqtt_c2_topic,
+    rule_mqtt_scanner_client,
+    rule_coap_sensitive_path,
+    rule_coap_amplification,
 )
 
 

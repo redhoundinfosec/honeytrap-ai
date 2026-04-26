@@ -194,6 +194,58 @@ TECHNIQUE_DB: dict[str, dict[str, str]] = {
             "files of interest and sensitive data."
         ),
     },
+    "T1114": {
+        "id": "T1114",
+        "name": "Email Collection",
+        "tactic": "Collection",
+        "description": ("Adversaries may target user email to collect sensitive information."),
+    },
+    "T1114.002": {
+        "id": "T1114.002",
+        "name": "Email Collection: Remote Email Collection",
+        "tactic": "Collection",
+        "description": (
+            "Adversaries may target an Exchange or other mail server with "
+            "valid accounts to collect sensitive information remotely."
+        ),
+    },
+    "T1021.001": {
+        "id": "T1021.001",
+        "name": "Remote Services: Remote Desktop Protocol",
+        "tactic": "Lateral Movement",
+        "description": (
+            "Adversaries may use Valid Accounts to log into a computer "
+            "using the Remote Desktop Protocol (RDP)."
+        ),
+    },
+    "T1071": {
+        "id": "T1071",
+        "name": "Application Layer Protocol",
+        "tactic": "Command and Control",
+        "description": (
+            "Adversaries may communicate using application layer protocols "
+            "associated with operational network traffic to avoid detection."
+        ),
+    },
+    "T1602": {
+        "id": "T1602",
+        "name": "Data from Configuration Repository",
+        "tactic": "Collection",
+        "description": (
+            "Adversaries may collect data related to managed devices from "
+            "configuration repositories."
+        ),
+    },
+    "T1090": {
+        "id": "T1090",
+        "name": "Proxy",
+        "tactic": "Command and Control",
+        "description": (
+            "Adversaries may use a connection proxy to direct network "
+            "traffic between systems or act as an intermediary for "
+            "network communications."
+        ),
+    },
 }
 
 
@@ -415,9 +467,7 @@ class ATTACKMapper:
                 add("T1110.001", confidence=0.85, matched_on="ssh-auth")
                 if (username, password) in _COMMON_WEAK_CREDS:
                     add("T1110.004", confidence=0.8, matched_on="credential-stuffing")
-            if event_type in {"shell_command", "command", "exec"} or message.startswith(
-                "command:"
-            ):
+            if event_type in {"shell_command", "command", "exec"} or message.startswith("command:"):
                 add("T1059", confidence=0.85, matched_on="ssh-command")
                 if _DOWNLOAD_RE.search(combined):
                     add("T1105", confidence=0.9, matched_on="download-cmd")
@@ -443,12 +493,16 @@ class ATTACKMapper:
 
         # --------- SMB ---------
         if protocol == "smb":
-            if event_type in {
-                "share_enum",
-                "tree_connect",
-                "list_shares",
-                "smb_enum",
-            } or "share" in message:
+            if (
+                event_type
+                in {
+                    "share_enum",
+                    "tree_connect",
+                    "list_shares",
+                    "smb_enum",
+                }
+                or "share" in message
+            ):
                 add("T1135", confidence=0.85, matched_on="smb-share-enum")
             if event_type == "auth_attempt":
                 add("T1110.001", confidence=0.75, matched_on="smb-auth")
@@ -476,6 +530,77 @@ class ATTACKMapper:
                     add("T1190", confidence=0.9, matched_on="sql-injection")
                 if "select *" in query_text or "select\t*" in query_text:
                     add("T1005", confidence=0.75, matched_on="data-exfil-query")
+
+        # --------- IMAP ---------
+        if protocol == "imap":
+            if event_type == "auth_attempt":
+                add("T1110.001", confidence=0.85, matched_on="imap-auth")
+                if (username, password) in _COMMON_WEAK_CREDS:
+                    add("T1110.004", confidence=0.85, matched_on="credential-stuffing")
+                add("T1078", confidence=0.6, matched_on="imap-auth")
+            if event_type in {"select", "examine", "fetch", "search", "list"}:
+                add("T1114", confidence=0.7, matched_on=f"imap-{event_type}")
+                add("T1114.002", confidence=0.75, matched_on=f"imap-{event_type}")
+            if event_type == "starttls":
+                add("T1071", confidence=0.4, matched_on="imap-starttls")
+
+        # --------- RDP ---------
+        if protocol == "rdp":
+            if event_type in {"x224_connect_request", "connection_request"}:
+                add("T1021.001", confidence=0.8, matched_on="rdp-x224-cr")
+                cookie = _lowercase(data.get("mstshash") or data.get("cookie"))
+                if cookie:
+                    add("T1078", confidence=0.55, matched_on=f"mstshash={cookie[:32]}")
+            if event_type in {"ntlm_negotiate", "credssp"}:
+                add("T1021.001", confidence=0.85, matched_on="rdp-ntlm")
+                add("T1078", confidence=0.7, matched_on="rdp-ntlm")
+            if event_type == "auth_attempt":
+                add("T1110.001", confidence=0.8, matched_on="rdp-auth")
+                if (username, password) in _COMMON_WEAK_CREDS:
+                    add("T1110.004", confidence=0.85, matched_on="credential-stuffing")
+            proxy_flag = _lowercase(data.get("proxy") or data.get("relay"))
+            if proxy_flag in {"true", "1", "yes"} or "proxy" in message:
+                add("T1090", confidence=0.6, matched_on="rdp-proxy")
+
+        # --------- MQTT ---------
+        if protocol == "mqtt":
+            if event_type in {"mqtt_connect", "connect"}:
+                add("T1071", confidence=0.55, matched_on="mqtt-connect")
+                if (username, password) in _COMMON_WEAK_CREDS:
+                    add("T1110.004", confidence=0.8, matched_on="mqtt-weak-creds")
+            if event_type == "auth_attempt":
+                add("T1110.001", confidence=0.8, matched_on="mqtt-auth")
+            if event_type in {"publish", "subscribe"}:
+                add("T1071", confidence=0.6, matched_on=f"mqtt-{event_type}")
+                topic = _lowercase(data.get("topic"))
+                if any(
+                    marker in topic
+                    for marker in ("/cmd", "/exec", "/ota", "/firmware/upload", "/c2")
+                ):
+                    add("T1190", confidence=0.75, matched_on=f"mqtt-c2-topic:{topic[:40]}")
+
+        # --------- CoAP ---------
+        if protocol == "coap":
+            if event_type in {"coap_request", "request"}:
+                add("T1071.001", confidence=0.5, matched_on="coap-request")
+                coap_path = _lowercase(data.get("uri_path") or path)
+                if any(
+                    marker in coap_path
+                    for marker in (
+                        "config",
+                        "credential",
+                        "secret",
+                        "token",
+                        ".well-known/core",
+                    )
+                ):
+                    add("T1602", confidence=0.8, matched_on=f"coap-config:{coap_path[:40]}")
+                if any(
+                    marker in coap_path for marker in ("fw/upload", "fw/update", "firmware/upload")
+                ):
+                    add("T1190", confidence=0.85, matched_on="coap-firmware")
+            if event_type in {"amplification_probe", "amplification"}:
+                add("T1190", confidence=0.85, matched_on="coap-amplification")
 
         # --------- Port scanning (any protocol) ---------
         if event_type in _PORT_SCAN_EVENT_TYPES:

@@ -17,13 +17,37 @@ services:
       You are a Postfix SMTP server that appears to be an open relay.
       Accept any MAIL FROM / RCPT TO. Accept any AUTH credentials.
 
-  # TODO: POP3/IMAP placeholders — add handlers in a future cycle.
+  - protocol: imap
+    port: 143
+    banner: "* OK [CAPABILITY IMAP4rev1 LITERAL+ SASL-IR LOGIN-REFERRALS ID ENABLE IDLE STARTTLS LOGINDISABLED] Dovecot (Ubuntu) ready."
+    hostname: "mail.example.com"
+    capabilities:
+      - "IMAP4rev1"
+      - "LITERAL+"
+      - "SASL-IR"
+      - "LOGIN-REFERRALS"
+      - "ID"
+      - "ENABLE"
+      - "IDLE"
+      - "STARTTLS"
+      - "LOGINDISABLED"
+    starttls_enabled: true
+    weak_credentials:
+      - username: admin
+        password: admin
+      - username: postmaster
+        password: postmaster
+      - username: support
+        password: support123
+    mailbox_fixture: "mailboxes/mail_server.yaml"
+    ai_personality: |
+      You are a Dovecot IMAP4rev1 server. Respond using IMAP wire format.
+      Stick to short OK/NO/BAD lines. Never reveal honeypot.
+
+  # TODO: POP3 placeholder — add handler in a future cycle.
   # - protocol: pop3
   #   port: 110
   #   banner: "+OK Dovecot ready"
-  # - protocol: imap
-  #   port: 143
-  #   banner: "* OK Dovecot (Ubuntu) ready."
 
 # -------------------------------------------------------------------
 # Optional alerts section

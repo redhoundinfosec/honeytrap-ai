@@ -1241,3 +1241,129 @@ exclusively (`api_key_env`, `username_env`/`password_env`,
   CDN. The shape is right but the cache strategy is naive.
 - `match[*]` parameters use OR semantics within a key. Cross-key
   semantics (intersection) match the spec.
+
+## Cycle 13 — IMAP, RDP, MQTT, and CoAP Protocol Handlers (2026-04-26)
+
+**Goal:** lift the protocol catalogue from 7 first-class handlers
+(HTTP, SSH, FTP, SMB, Telnet, SMTP, MySQL) to 11 by adding four new
+handlers, each with full integration into the ATT&CK mapper, IOC
+extractor, alert rule engine, and forensic recorder.
+
+### New protocol handlers
+
+- **IMAP4rev1** (`src/honeytrap/protocols/imap_handler.py`, ~800 lines).
+  Custom asyncio implementation of RFC 3501 + RFC 2595 (STARTTLS).
+  Supports CAPABILITY, NOOP, LOGOUT, ID, ENABLE, STARTTLS, LOGIN,
+  AUTHENTICATE PLAIN (RFC 4616), LIST, LSUB, STATUS, SELECT, EXAMINE,
+  FETCH BODY[HEADER]/RFC822, SEARCH, CLOSE, EXPUNGE. STARTTLS upgrades
+  capture the attacker's TLS ClientHello via `tls_peek` so JA3/JA4
+  land on the same session. Mailbox content is loaded from
+  YAML fixtures under `profiles/mailboxes/`.
+- **RDP signature** (`src/honeytrap/protocols/rdp_handler.py`, ~445
+  lines). TPKT + X.224 CR-TPDU parser extracts `mstshash` cookies
+  and the `rdpNegReq` requested-protocols field. Replies with
+  CC-TPDU choosing `PROTOCOL_SSL` and captures the attacker
+  ClientHello. Parses NTLM `NEGOTIATE_MESSAGE` workstation/domain.
+  Signature-only by design — no full RDP session is emulated.
+- **MQTT 3.1.1 + 5.0** (`src/honeytrap/protocols/mqtt_handler.py`,
+  ~655 lines). Variable-byte length codec, CONNECT/CONNACK,
+  SUBSCRIBE/SUBACK, PUBLISH/PUBACK/PUBREC, PINGREQ/PINGRESP. v5
+  property blocks are skipped safely. Detects scanner-style
+  client_ids (`mqtt-explorer`, `mosquitto_sub`, `paho`, …) and
+  C2-style topics (`/cmd`, `/exec`, `/ota`, `/firmware/upload`).
+- **CoAP / RFC 7252** (`src/honeytrap/protocols/coap_handler.py`,
+  ~605 lines). UDP `DatagramProtocol` server with delta-encoded
+  options codec. Resources for sensors, actuators, firmware and
+  `.well-known/core`. Per-source rate limiter caps each IP at 60
+  packets/sec by default. Malformed CON answered with RST,
+  malformed NON dropped silently. DTLS port 5684 listens in
+  log-only mode pending a follow-up cycle.
+
+### Cross-cutting integration
+
+- `src/honeytrap/intel/attack_mapper.py` — added 6 new TECHNIQUE_DB
+  entries (T1114, T1114.002, T1021.001, T1071, T1602, T1090) and
+  per-protocol mapping rules covering IMAP, RDP, MQTT, CoAP.
+- `src/honeytrap/intel/ioc_extractor.py` — extended the data fields
+  scanned for IOCs (`topic`, `will_topic`, `client_id`, `uri_path`,
+  `workstation`, `mstshash`, `cookie`, …).
+- `src/honeytrap/alerts/rules.py` — added five new default rules:
+  `rule_rdp_scanner_cookie` (MEDIUM), `rule_mqtt_c2_topic` (HIGH),
+  `rule_mqtt_scanner_client` (MEDIUM),
+  `rule_coap_sensitive_path` (MEDIUM), and
+  `rule_coap_amplification` (HIGH).
+- `src/honeytrap/core/engine.py` — extended `HIGH_PORT_FALLBACK`
+  with 143/993/1883/3389/5683/5684/8883, added `PROTOCOL_NAMES`,
+  registered the four new handler classes.
+- `src/honeytrap/core/config.py` and `src/honeytrap/protocols/base.py`
+  — added per-protocol idle-timeout fields (`imap_idle`,
+  `rdp_idle`, `mqtt_idle`, `coap_idle`) and routed them through the
+  shared `idle_timeout()` helper.
+- `src/honeytrap/protocols/__init__.py` — re-exported the new
+  handler classes.
+
+### Profiles
+
+- New: `profiles/windows_workstation.yaml` (RDP + SMB + IIS) and
+  `profiles/iot_industrial.yaml` (MQTT + CoAP + HTTP, plus the
+  log-only DTLS port).
+- Updated: `profiles/mail_server.yaml` now exposes IMAP4rev1
+  alongside SMTP; `profiles/full_enterprise.yaml` adds IMAP, RDP,
+  MQTT, and CoAP — all 11 protocols in one process.
+- New: `profiles/mailboxes/mail_server.yaml` and
+  `profiles/mailboxes/full_enterprise.yaml` IMAP fixtures.
+
+### Tests (+68 new tests, 491 total passing)
+
+- `tests/protocols/test_imap.py` (14): parser unit tests, SASL PLAIN
+  decoder, fixture fallback, and engine-integrated greeting,
+  CAPABILITY, LOGIN auth_attempt event, SELECT event.
+- `tests/protocols/test_rdp.py` (10): TPKT parser, X.224 CR cookie +
+  rdpNegReq extraction, Connection Confirm shape, NTLM NEGOTIATE
+  parsing, scanner-cookie detection.
+- `tests/protocols/test_mqtt.py` (14): variable-byte roundtrip and
+  truncation handling, CONNECT v3.1.1 parsing, CONNACK v3/v5
+  shapes, SUBSCRIBE/SUBACK, PUBLISH QoS handling, PUBACK/PUBREC,
+  PINGRESP, handler construction.
+- `tests/protocols/test_coap.py` (10): GET parsing, version /
+  truncation rejection, response roundtrip with options + payload,
+  URI query, rate limiter cap, profile field parsing,
+  method-name fallback.
+- `tests/protocols/test_protocols_registry.py` (20): 11-protocol
+  registry coverage, ATT&CK mappings for each new protocol, all
+  five new alert rules, and profile-shape assertions.
+
+### Documentation
+
+- New `docs/protocols/{imap,rdp,mqtt,coap}.md` covering implemented
+  commands, profile fields, ATT&CK mappings, alert rules, and
+  per-protocol limits.
+- README updated to advertise 11 protocols and the two new device
+  profiles in the interactive selection menu.
+- ROADMAP — checked off the new protocols, called out the DTLS
+  follow-up for CoAP UDP/5684.
+
+### Quality bars met
+
+- No new runtime dependencies. Every parser and codec uses stdlib
+  (`asyncio`, `struct`, `re`, `base64`, `dataclasses`, `datetime`).
+- Every new module ships with full type hints, docstrings on every
+  public symbol, and `ProtocolParseError` for defensive parsing.
+- Per-connection input buffer cap of 256 KiB across the four new
+  handlers; CoAP has an additional UDP per-source 60 pps cap.
+- Timezone-aware UTC timestamps via
+  `datetime.now(timezone.utc).isoformat()`.
+
+### Known follow-ups
+
+- DTLS for CoAP UDP/5684 (the listener is wired up in
+  `iot_industrial` but currently records ClientHellos only).
+- Full RDP session emulation past the security negotiation —
+  intentionally out of scope. Signature-only is the right product
+  decision; tracking richer NLA + GCC ConferenceCreate decoding for
+  a later cycle.
+- POP3 placeholder still in `profiles/mail_server.yaml` —
+  scheduled alongside the impacket-backed SMB share work.
+- IMAP IDLE long-polling is advertised in CAPABILITY but the
+  command itself currently returns BAD; a follow-up will plumb
+  through the asynchronous push notifications.

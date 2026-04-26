@@ -60,8 +60,30 @@ HIGH_PORT_FALLBACK = {
     443: 8443,
     445: 4450,
     554: 5540,
+    993: 9930,
+    1883: 18830,
     3306: 33060,
+    3389: 33890,
+    5683: 56830,
+    5684: 56840,
+    8883: 88830,
 }
+
+
+PROTOCOL_NAMES: tuple[str, ...] = (
+    "http",
+    "https",
+    "ssh",
+    "ftp",
+    "smb",
+    "telnet",
+    "smtp",
+    "mysql",
+    "imap",
+    "rdp",
+    "mqtt",
+    "coap",
+)
 
 
 class Engine:
@@ -293,9 +315,13 @@ class Engine:
     def _build_handlers(self) -> list[ProtocolHandler]:
         """Instantiate a protocol handler for each service in the profile."""
         # Local import avoids circular imports.
+        from honeytrap.protocols.coap_handler import CoAPHandler
         from honeytrap.protocols.ftp_handler import FTPHandler
         from honeytrap.protocols.http_handler import HTTPHandler
+        from honeytrap.protocols.imap_handler import IMAPHandler
+        from honeytrap.protocols.mqtt_handler import MQTTHandler
         from honeytrap.protocols.mysql_handler import MySQLHandler
+        from honeytrap.protocols.rdp_handler import RDPHandler
         from honeytrap.protocols.smb_handler import SMBHandler
         from honeytrap.protocols.smtp_handler import SMTPHandler
         from honeytrap.protocols.ssh_handler import SSHHandler
@@ -310,6 +336,10 @@ class Engine:
             "telnet": TelnetHandler,
             "smtp": SMTPHandler,
             "mysql": MySQLHandler,
+            "imap": IMAPHandler,
+            "rdp": RDPHandler,
+            "mqtt": MQTTHandler,
+            "coap": CoAPHandler,
         }
 
         handlers: list[ProtocolHandler] = []
