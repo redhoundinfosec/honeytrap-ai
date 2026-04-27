@@ -76,6 +76,7 @@ _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 _ROLE_VIEWER = Role.VIEWER
 _ROLE_ANALYST = Role.ANALYST
 _ROLE_ADMIN = Role.ADMIN
+_ROLE_NODE = Role.NODE
 
 
 @dataclass
@@ -904,6 +905,18 @@ class APIServer:
         if self._openapi_cache is None:
             self._openapi_cache = build_openapi(self.router, version=self.service.version())
         return self._openapi_cache
+
+    def enable_cluster(self, fleet: Any) -> None:
+        """Register cluster routes with this server.
+
+        ``fleet`` must be a :class:`honeytrap.cluster.controller_fleet.Fleet`
+        instance. Imported lazily so the API server is usable without
+        the cluster subsystem.
+        """
+        from honeytrap.cluster.api_endpoints import register_cluster_routes  # noqa: PLC0415
+
+        register_cluster_routes(self, fleet)
+        self._openapi_cache = None
 
     # -- request lifecycle --------------------------------------------
     def handle(

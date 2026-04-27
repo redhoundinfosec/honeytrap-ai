@@ -257,6 +257,49 @@ filesystem, and `capabilities.drop: [ALL]`.
 kubectl apply -k deploy/k8s
 ```
 
+### Multi-node deployment
+
+The same `honeytrap` binary can run as a sensor (`role: node`) that
+forwards events to a central management plane (`role: controller`).
+
+```
+                       +----------------------+
+                       |    controller        |
+   admin / analyst <-->|  :9300 management    |
+                       |  Fleet (SQLite)      |
+                       +-----^------^---------+
+                             |      |  htk_-keyed HTTP
+              +--------------+      +--------------+
+              |                                    |
+        +-----+------+                       +-----+------+
+        |  node      |   ...     ...         |  node      |
+        |  edge-01   |                       |  edge-N    |
+        |  honeypots |                       |  honeypots |
+        +------------+                       +------------+
+```
+
+Bootstrap a node:
+
+```bash
+honeytrap node register \
+    --controller https://controller.example.com:9300 \
+    --api-key htk_xxx \
+    --node-id edge-01
+```
+
+Inspect the fleet from the controller side:
+
+```bash
+honeytrap controller list-nodes --api-key htk_admin
+honeytrap controller top-attackers --limit 10 --api-key htk_admin
+honeytrap controller mitre-heatmap --api-key htk_admin
+```
+
+The Helm chart ships role-specific override files (`values-node.yaml`,
+`values-controller.yaml`). See [`docs/cluster.md`](docs/cluster.md) for
+the full operational guide and [`deploy/helm/honeytrap-ai/README.md`](deploy/helm/honeytrap-ai/README.md)
+for chart usage.
+
 ### systemd
 
 ```bash

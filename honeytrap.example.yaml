@@ -104,3 +104,29 @@ alerts:
     #   to_addrs: [soc@example.com]
     #   min_severity: HIGH
     #   rate_limit_per_minute: 5
+
+
+# Multi-node cluster (Cycle 15).
+#
+# Disabled by default. When enabled, the binary takes one of three
+# roles: `node` (sensor that forwards events), `controller` (central
+# management plane), or `mixed` (both, for single-host setups).
+#
+# A node-role API key is htk_-prefixed and limited by RBAC to the
+# register, heartbeat, and event-ingest endpoints. Generate one on the
+# controller with: `honeytrap api-keys create --role node --name edge-01`.
+cluster:
+  enabled: false
+  role: node                                  # node | controller | mixed
+  # node_id: edge-01                          # stable identifier (optional)
+  controller_url: http://controller.local:9300
+  api_key: htk_REPLACE_ME
+  heartbeat_interval: 30                      # seconds
+  event_batch_size: 200                       # max events per POST
+  event_flush_interval: 5                     # seconds between flushes
+  tls_verify: true                            # honour controller TLS chain
+  spool_max_events: 10000                     # in-memory + disk overflow cap
+  spool_max_disk_bytes: 67108864              # 64 MiB on-disk overflow cap
+  tags:
+    - edge
+    # - us-east-1

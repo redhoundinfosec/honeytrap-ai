@@ -205,3 +205,17 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] `hypothesis>=6.0` and `pytest-benchmark>=4.0` added as dev/test optional dependencies only — zero new runtime deps
 - [x] `tests/README.md` documenting layout (`unit/`, `fuzz/`, `bench/`), markers, and targeted invocation
 - [x] Cycle 14B (2026-04-27): mypy strict over `src/honeytrap` with shrinking allow-list, branch-coverage gate `--cov-fail-under=90`, `.pre-commit-config.yaml` (ruff, ruff-format, mypy, codespell, file hygiene), CI workflow with lint/typecheck/test jobs (Python 3.11 and 3.12) plus a nightly fuzz workflow with the Hypothesis `ci` profile (500 examples per property)
+
+## Phase 16 — Multi-node deployment (Cycle 15, 2026-04-27)
+
+- [x] `honeytrap.cluster` package (config, controller fleet, node uplink, API endpoints, CLI, TUI screen) — stdlib only, zero new runtime deps
+- [x] Two-role binary: `node` forwards events to a `controller`; `mixed` runs both for single-host setups
+- [x] New `node` RBAC role isolated from viewer/analyst/admin — node keys can only register, send heartbeats, and ingest events
+- [x] htk_-prefixed API keys with HMAC-SHA256 verification (reusing existing `APIKeyStore`); node keys are denied at the RBAC layer for any non-cluster route
+- [x] SQLite-backed `Fleet` with WAL journalling, indexes on `(node_id, ts)`, `(src_ip, ts)`, `(technique, ts)`; aggregate queries (top attackers, MITRE heatmap, sessions per node) are pure SQL
+- [x] `NodeUplink` async client with bounded in-memory deque + SQLite overflow spool, exponential backoff with jitter (capped at 60 s), heartbeat redaction defence-in-depth
+- [x] Eight management API routes under `/api/v1/cluster/*` (register/deregister/heartbeat/event-ingest/list/get/query-events/aggregate-{top-attackers,mitre,sessions}); every response carries a `Cluster-Generation` header
+- [x] CLI: `honeytrap node {register,uplink-status}` and `honeytrap controller {list-nodes,list-events,top-attackers,mitre-heatmap}` (Rich tables + ASCII heatmap)
+- [x] Textual `ClusterScreen` rendering nodes / top attackers / MITRE side-by-side
+- [x] Helm chart split (`values-controller.yaml` / `values-node.yaml`) with secret-backed API key wiring
+- [x] 142 new tests across `tests/cluster/` covering fleet, uplink (incl. lifecycle + outage recovery), HTTP endpoints (RBAC matrix, body limits, OpenAPI), CLI commands (with injected HTTP callable), end-to-end integration, and the cluster TUI snapshot fetcher

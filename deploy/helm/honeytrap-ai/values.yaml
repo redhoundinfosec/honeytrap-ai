@@ -117,3 +117,30 @@ tolerations: []
 affinity: {}
 
 podAnnotations: {}
+
+# Multi-node cluster support (Cycle 15).
+#
+# When `cluster.enabled` is true the chart switches into one of three
+# roles:
+#
+#   * node       -- a sensor that reports to a central controller.
+#   * controller -- the management plane (no honeypots run here).
+#   * mixed      -- both at once (single-host demos).
+#
+# For a real deployment, install the chart twice: once with
+# `values-controller.yaml` and once per region/cluster with
+# `values-node.yaml`.
+cluster:
+  enabled: false
+  role: node
+  controllerUrl: ""
+  apiKeySecret:
+    name: ""
+    key: api_key
+  heartbeatInterval: 30
+  eventBatchSize: 200
+  eventFlushInterval: 5
+  spoolMaxEvents: 10000
+  spoolMaxDiskBytes: 67108864
+  tlsVerify: true
+  tags: []

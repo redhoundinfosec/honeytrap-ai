@@ -1,0 +1,55 @@
+# Helm overrides for the cluster CONTROLLER role.
+#
+# A controller does NOT run any honeypots. It exposes the management
+# API on port 9300 and accepts heartbeats and event batches from the
+# nodes. Install with:
+#
+#   helm install honeytrap-controller deploy/helm/honeytrap-ai \
+#       -f deploy/helm/honeytrap-ai/values-controller.yaml \
+#       --set cluster.apiKeySecret.name=honeytrap-controller-key
+#
+# Generate an admin API key with:
+#
+#   honeytrap api-keys create --role admin --name controller-bootstrap
+
+profile: ""
+dashboardMode: none
+
+# Only the management API service is published.
+service:
+  type: ClusterIP
+  ports:
+    - name: management
+      port: 9300
+      targetPort: 9300
+      protocol: TCP
+
+cluster:
+  enabled: true
+  role: controller
+  # The controller does not need controllerUrl -- it IS the controller.
+  controllerUrl: ""
+  apiKeySecret:
+    name: honeytrap-controller-key
+    key: api_key
+  heartbeatInterval: 30
+  eventBatchSize: 200
+  eventFlushInterval: 5
+  tlsVerify: true
+  tags:
+    - controller
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+persistence:
+  enabled: true
+  size: 20Gi
+
+extraArgs:
+  - "--cluster-role=controller"

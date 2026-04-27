@@ -1,0 +1,47 @@
+# Helm overrides for the cluster NODE role.
+#
+# A node runs the actual honeypots and forwards events to a central
+# controller. Install with:
+#
+#   helm install honeytrap-edge-01 deploy/helm/honeytrap-ai \
+#       -f deploy/helm/honeytrap-ai/values-node.yaml \
+#       --set cluster.controllerUrl=https://honeytrap-controller.example.com:9300 \
+#       --set cluster.apiKeySecret.name=honeytrap-node-key
+#
+# The node API key must have role=node. Generate it on the controller:
+#
+#   honeytrap api-keys create --role node --name edge-01
+
+profile: web_server
+dashboardMode: none
+
+cluster:
+  enabled: true
+  role: node
+  controllerUrl: ""  # set via --set or values override
+  apiKeySecret:
+    name: honeytrap-node-key
+    key: api_key
+  heartbeatInterval: 30
+  eventBatchSize: 200
+  eventFlushInterval: 5
+  spoolMaxEvents: 10000
+  spoolMaxDiskBytes: 67108864
+  tlsVerify: true
+  tags:
+    - edge
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1500m
+    memory: 1Gi
+
+persistence:
+  enabled: true
+  size: 10Gi
+
+extraArgs:
+  - "--cluster-role=node"

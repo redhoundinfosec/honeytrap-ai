@@ -220,6 +220,19 @@ class ForensicsConfigRaw:
 
 
 @dataclass
+class ClusterConfigRaw:
+    """Raw representation of the ``cluster`` YAML block.
+
+    The block is built into a typed
+    :class:`honeytrap.cluster.config.ClusterConfig` lazily by callers
+    that actually need cluster behavior. Keeping the raw dict here lets
+    the core config module avoid importing the cluster package.
+    """
+
+    raw: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class Config:
     """Root configuration object."""
 
@@ -235,6 +248,7 @@ class Config:
     tls_fingerprint: TLSFingerprintConfig = field(default_factory=TLSFingerprintConfig)
     forensics: ForensicsConfigRaw = field(default_factory=ForensicsConfigRaw)
     sinks: SinksConfigRaw = field(default_factory=SinksConfigRaw)
+    cluster: ClusterConfigRaw = field(default_factory=ClusterConfigRaw)
 
     def to_dict(self) -> dict[str, Any]:
         """Return the config as a plain dictionary."""
@@ -244,6 +258,9 @@ class Config:
 def _apply_dict(cfg: Config, data: dict[str, Any]) -> Config:
     """Merge a dict into ``cfg`` without failing on unknown keys."""
     for section_name, section_data in data.items():
+        if section_name == "cluster" and isinstance(section_data, dict):
+            cfg.cluster.raw = dict(section_data)
+            continue
         if section_name == "alerts" and isinstance(section_data, dict):
             cfg.alerts.enabled = bool(section_data.get("enabled", cfg.alerts.enabled))
             cfg.alerts.min_severity = str(section_data.get("min_severity", cfg.alerts.min_severity))

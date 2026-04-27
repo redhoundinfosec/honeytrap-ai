@@ -1640,3 +1640,82 @@ intent is auditable in one place.
   and the AI backend HTTP transport.
 - Wiring `coverage.xml` into a public coverage badge service once the
   org policy on third-party services is settled.
+
+
+## 2026-04-27 — Cycle 15: Multi-node deployment with centralized management controller
+
+The honeypot can now run as one of three roles -- `node`, `controller`,
+or `mixed` -- via a new `cluster:` config block. The same binary fans
+out into either a sensor that forwards events to a central controller
+or a controller that aggregates events from many sensors. No new
+runtime dependencies; everything is stdlib (`urllib`, `http.server`,
+`sqlite3`, `asyncio`).
+
+### What's new
+
+* `src/honeytrap/cluster/` -- a six-module package providing config,
+  fleet registry, node uplink, API endpoints, CLI subcommands, and a
+  Textual cluster screen.
+* `Role.NODE` -- a leaf RBAC role wired into `check_role` so node
+  tokens are isolated from the viewer/analyst/admin ladder. Node keys
+  can register, heartbeat, and ingest events; they cannot read sessions
+  or rotate keys.
+* `Fleet` -- SQLite-backed catalogue with WAL journalling and indexes
+  on `(node_id, ts)`, `(src_ip, ts)`, `(technique, ts)`. The
+  `Cluster-Generation` counter increments on every registration change
+  so cache invalidation is cheap.
+* `NodeUplink` -- async client with a bounded deque (default 10 000
+  events) and a SQLite spillover spool (default 64 MiB on disk). The
+  forwarder loop batches up to `event_batch_size` per POST, retries
+  with exponential backoff + jitter (capped at 60 s), and re-spools
+  in-flight events on failure so they survive a process restart.
+* Eight API endpoints under `/api/v1/cluster/*`: register, deregister,
+  heartbeat, event ingest (5 MiB cap), node list/get, event query,
+  aggregate top-attackers / MITRE / sessions-per-node.
+* CLI: `honeytrap node register|uplink-status` and `honeytrap
+  controller list-nodes|list-events|top-attackers|mitre-heatmap`. Each
+  subcommand takes a pluggable HTTP callable so unit tests don't open
+  sockets.
+* `ClusterScreen` -- a Textual screen rendering nodes / top attackers /
+  MITRE techniques side-by-side; bound by escape/r.
+* Helm chart split: `values-controller.yaml` (controller-only deploy
+  exposing :9300) and `values-node.yaml` (node deploy referencing a
+  controller URL and a Secret-backed API key).
+* `docs/cluster.md` -- operational guide: topology, role table,
+  config surface, API key model, uplink behaviour, storage layout,
+  security notes.
+* `honeytrap.example.yaml` extended with a fully commented `cluster:`
+  block.
+
+### Test coverage
+
+136 new tests across `tests/cluster/`:
+
+* `test_config.py` -- 14 tests on validation + parser.
+* `test_controller_fleet.py` -- 27 tests covering register,
+  idempotency, heartbeat, redaction, stale-offline detection, ingest
+  validation, batch caps, query filters, aggregates, generation
+  counter, corrupt-JSON fallback.
+* `test_node_uplink.py` -- 32 tests covering construction,
+  enqueue/spool/drop policy, heartbeat snapshot redaction, register
+  retry, backoff, spool round-trip, full lifecycle, and outage
+  recovery.
+* `test_api_endpoints.py` -- 32 tests covering the RBAC matrix
+  (node/analyst/admin/viewer/anonymous), input validation, body-size
+  limits, `Cluster-Generation` header presence, and OpenAPI inclusion.
+* `test_cli.py` -- 29 tests on every subcommand using injected HTTP
+  callables.
+* `test_integration.py` -- 3 end-to-end tests: two simulated nodes
+  registering and ingesting events through an in-process controller,
+  outage-spool-recovery, and `Cluster-Generation` header monotonicity.
+* `test_cluster_tui.py` -- 6 snapshot-fetcher tests.
+
+### Quality bars met
+
+* mypy strict still clean across `src/honeytrap` (133 source files).
+* All 577 pre-existing tests continue to pass; suite total is 713
+  passing + 1 skipped.
+* No new mypy overrides, no new ruff suppressions, no emoji introduced.
+* OPSEC: heartbeat / event payloads run through `_redact_snapshot` on
+  the controller; node tokens cannot satisfy any non-cluster route;
+  every response carries `Cluster-Generation`.

@@ -219,6 +219,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     build_sinks_parser(sub)
 
+    from honeytrap.cluster.cli import build_controller_parser, build_node_parser
+
+    build_node_parser(sub)
+    build_controller_parser(sub)
+
     parser.add_argument(
         "--api-enabled",
         action="store_true",
@@ -602,6 +607,14 @@ def main(argv: list[str] | None = None) -> int:
         from honeytrap.sinks.cli import run_sinks_command
 
         return run_sinks_command(args, cfg)
+    if args.command == "node":
+        from honeytrap.cluster.cli import run_node_command
+
+        return run_node_command(args)
+    if args.command == "controller":
+        from honeytrap.cluster.cli import run_controller_command
+
+        return run_controller_command(args)
 
     # Apply adaptive-AI CLI overrides before the engine reads config.
     if getattr(args, "ai_enabled", None) is not None:
