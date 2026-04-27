@@ -635,6 +635,35 @@ pytest
 ruff check .
 ```
 
+### Quality & Testing
+
+The dev extras pull in `hypothesis` and `pytest-benchmark` so the
+fuzz and benchmark suites run locally:
+
+```bash
+# Install dev dependencies (includes hypothesis, pytest-benchmark)
+pip install -e ".[dev]"
+
+# Default: runs unit + property-based fuzz tests, excludes benchmarks
+pytest
+
+# Only the property-based fuzz tests (Hypothesis)
+pytest -m fuzz
+
+# Skip the fuzz tests (e.g. on resource-constrained CI)
+pytest -m "not fuzz"
+
+# Run the performance benchmarks (NOT part of the default run)
+pytest tests/bench/ --benchmark-only
+
+# Save a benchmark baseline and diff future runs against it
+pytest tests/bench/ --benchmark-only --benchmark-autosave
+pytest-benchmark compare 0001 0002
+```
+
+See `tests/README.md` for a tour of the layout (unit, fuzz, bench)
+and the full marker list.
+
 ---
 
 ## 🔒 Security

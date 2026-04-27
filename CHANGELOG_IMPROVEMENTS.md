@@ -1367,3 +1367,82 @@ extractor, alert rule engine, and forensic recorder.
 - IMAP IDLE long-polling is advertised in CAPABILITY but the
   command itself currently returns BAD; a follow-up will plumb
   through the asynchronous push notifications.
+
+
+## 2026-04-27 — Cycle 14A: Fuzz testing and performance benchmarks
+
+### Property-based fuzz tests (`tests/fuzz/`, 31 new tests)
+
+- `tests/fuzz/test_tls_clienthello_fuzz.py` (7 tests) — random buffers,
+  truncated headers, malformed extensions, oversized/non-UTF-8 SNI,
+  zero-length cipher list, oversize handshake length never crash
+  `parse_client_hello` or `parse_tls_record`.
+- `tests/fuzz/test_rdp_tpkt_fuzz.py` (6 tests) — TPKT, X.224 Connection
+  Request, and NTLM NEGOTIATE_MESSAGE parsers raise only
+  `ProtocolParseError`; CC-TPDU build round-trips; memory bound holds
+  (<64 KiB output for 1 KiB random input).
+- `tests/fuzz/test_mqtt_fuzz.py` (7 tests) — `parse_connect`,
+  `parse_subscribe`, `parse_publish` are total under random and
+  structured inputs; variable-byte remaining-length encode/decode
+  round-trip; CONNACK / PUBACK / PUBREC / SUBACK builders stable.
+- `tests/fuzz/test_coap_fuzz.py` (7 tests) — `parse_message` rejects
+  reserved option-delta nibbles and oversize tokens; `build_response`
+  output round-trips through `parse_message`; under-minimum buffers
+  raise cleanly.
+- `tests/fuzz/test_stix_roundtrip_fuzz.py` (4 tests) — IOC and session
+  bundles serialise into self-validating STIX 2.1 bundles; duplicate
+  IOCs are merged by ID; empty bundle still ships the seeded identity.
+
+### Performance benchmarks (`tests/bench/`, 22 new functions)
+
+- `tests/bench/test_event_bus_bench.py` (5 benches) — fan-out
+  throughput at 1k×1, 1k×4, 10k×1, 10k×4 subscribers, plus a 100k×1
+  slow benchmark.
+- `tests/bench/test_intent_classifier_bench.py` (10 benches) — one
+  per `IntentLabel` (RECON, BRUTE_FORCE, EXPLOIT_ATTEMPT,
+  CREDENTIAL_HARVEST, LATERAL_MOVEMENT, EXFILTRATION, PERSISTENCE,
+  COIN_MINING, WEB_SHELL, UNKNOWN).
+- `tests/bench/test_response_cache_bench.py` (4 benches) —
+  `ResponseCache` hit, miss, insert, and key-compute paths.
+- `tests/bench/test_tls_fingerprint_bench.py` (3 benches) —
+  parse-only, JA3+JA4 derivation on parsed hellos, end-to-end
+  `TLSFingerprinter.fingerprint`.
+
+### Tooling and configuration
+
+- `pyproject.toml` — added `hypothesis>=6.0` and
+  `pytest-benchmark>=4.0` to `[project.optional-dependencies] dev`;
+  registered `fuzz` and `benchmark` markers; default
+  `addopts = "-m 'not benchmark'"` so benchmarks are opt-in via
+  `--benchmark-only` or explicit `-m benchmark`.
+- `tests/fuzz/conftest.py` — shared Hypothesis strategies
+  (random buffer, varint byte, small text, option pair).
+- `tests/bench/README.md` — invocation reference for
+  `--benchmark-autosave` and `pytest-benchmark compare`.
+- `tests/README.md` — new top-level guide covering the
+  `unit/` / `fuzz/` / `bench/` layout, markers, and targeted runs.
+- `README.md` — new "Quality & Testing" subsection under
+  "Development" with the full set of pytest invocations.
+
+### Test count delta
+
+- Baseline (Cycle 13 tip): 491 passed, 1 skipped.
+- Cycle 14A: 522 passed, 1 skipped, 22 deselected
+  (`+31` fuzz tests, `+22` benchmark functions).
+
+### Quality bars met
+
+- Zero new runtime dependencies. `hypothesis` and `pytest-benchmark`
+  are dev-only.
+- Every new module and helper has a module docstring, and every
+  public function has a docstring + type hints.
+- `ruff check tests/fuzz tests/bench` — clean.
+- `ruff format tests/fuzz tests/bench` — clean.
+- All 491 pre-existing tests still pass; no regressions.
+- No emoji, no stray prints, no Atheris.
+
+### Deferred to Cycle 14B
+
+- mypy `--strict` over the `honeytrap/` tree.
+- Coverage threshold in CI.
+- Pre-commit hooks (ruff, mypy, fast pytest subset).

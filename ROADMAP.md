@@ -196,3 +196,12 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] Metrics: `honeytrap_stix_bundles_generated_total`, `honeytrap_stix_objects_total{type}`, `honeytrap_taxii_requests_total{endpoint,status}`, `honeytrap_sink_events_total`, `honeytrap_sink_dropped_total{sink,reason}`, `honeytrap_sink_send_duration_seconds`, `honeytrap_sink_queue_depth`, `honeytrap_sink_circuit_state`
 - [x] Secrets only via env vars (`api_key_env`, `username_env`/`password_env`, `SPLUNK_HEC_TOKEN`)
 - [x] 58 new tests covering builder, validator, pipeline, retry, breaker, ECS mapping, ES/HEC/JSONL IO, factory dispatch, CLI, and STIX/TAXII/sinks API endpoints
+
+## Phase 15 — Testing & Quality (Cycle 14A, 2026-04-27)
+
+- [x] Hypothesis property-based fuzz tests under `tests/fuzz/` (31 tests across 5 modules: TLS ClientHello, RDP TPKT/X.224/NTLM, MQTT, CoAP, STIX bundle round-trip)
+- [x] pytest-benchmark performance benchmarks under `tests/bench/` (22 functions across 4 modules: event-bus fan-out, intent classifier, response cache, TLS fingerprinting)
+- [x] `fuzz` and `benchmark` pytest markers registered in `pyproject.toml`; default `pytest` runs fuzz, excludes benchmarks (`addopts = "-m 'not benchmark'"`)
+- [x] `hypothesis>=6.0` and `pytest-benchmark>=4.0` added as dev/test optional dependencies only — zero new runtime deps
+- [x] `tests/README.md` documenting layout (`unit/`, `fuzz/`, `bench/`), markers, and targeted invocation
+- [ ] Cycle 14B follow-ups (in progress: fuzz + bench done; mypy/coverage/pre-commit pending in Cycle 14B): mypy strict over `honeytrap/`, coverage targets and CI threshold, pre-commit hooks (ruff, mypy, pytest fast subset)

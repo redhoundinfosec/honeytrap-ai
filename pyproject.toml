@@ -62,6 +62,8 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.1",
     "mypy>=1.0",
+    "hypothesis>=6.0",
+    "pytest-benchmark>=4.0",
 ]
 
 [project.scripts]
@@ -93,9 +95,12 @@ honeytrap = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+addopts = "-m 'not benchmark'"
 markers = [
     "slow: marks slow tests (deselect with -m 'not slow')",
     "docker: marks tests requiring Docker (deselect with -m 'not docker')",
+    "fuzz: property-based fuzz tests using Hypothesis",
+    "benchmark: performance benchmarks using pytest-benchmark (excluded from default runs)",
 ]
 
 [tool.ruff]
