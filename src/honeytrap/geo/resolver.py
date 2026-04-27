@@ -35,9 +35,9 @@ class GeoResolver:
 
     def __init__(self, config: GeoConfig) -> None:
         """Initialize the GeoIP resolver.
-        
-                Uses the free ip-api.com service by default, or a local MaxMind
-                GeoLite2 database if a path is provided.
+
+        Uses the free ip-api.com service by default, or a local MaxMind
+        GeoLite2 database if a path is provided.
         """
         self.config = config
         self._cache: OrderedDict[str, dict[str, str]] = OrderedDict()

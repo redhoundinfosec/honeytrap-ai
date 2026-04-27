@@ -182,9 +182,7 @@ class Dashboard:
         blocked.add_column("IP")
         blocked.add_column("Blocks", style="bold red")
         if limiter is not None:
-            top = sorted(
-                limiter._blocked_ips.items(), key=lambda kv: kv[1], reverse=True
-            )[:5]
+            top = sorted(limiter._blocked_ips.items(), key=lambda kv: kv[1], reverse=True)[:5]
             for ip, count in top:
                 blocked.add_row(ip, str(count))
             if not top:
@@ -199,9 +197,7 @@ class Dashboard:
                 "Memory",
                 f"{s.memory_mb:.0f} / {s.memory_limit_mb:.0f} MB",
             )
-            resources.add_row(
-                "Connections", f"{s.connections} / {s.connections_cap}"
-            )
+            resources.add_row("Connections", f"{s.connections} / {s.connections_cap}")
             resources.add_row(
                 "Log dir",
                 f"{s.log_dir_bytes / (1024 * 1024):.1f} MB",
@@ -253,15 +249,9 @@ class Dashboard:
         stats.add_column("Value", style="bold cyan")
         stats.add_row("Total events", str(sum(self._protocol_counter.values())))
         stats.add_row("Unique IPs", str(len(self._unique_ips)))
-        stats.add_row(
-            "Brute-force attempts", str(self._event_type_counter.get("auth_attempt", 0))
-        )
-        stats.add_row(
-            "Exploit attempts", str(self._event_type_counter.get("exploit_attempt", 0))
-        )
-        stats.add_row(
-            "HTTP requests", str(self._event_type_counter.get("http_request", 0))
-        )
+        stats.add_row("Brute-force attempts", str(self._event_type_counter.get("auth_attempt", 0)))
+        stats.add_row("Exploit attempts", str(self._event_type_counter.get("exploit_attempt", 0)))
+        stats.add_row("HTTP requests", str(self._event_type_counter.get("http_request", 0)))
         stats.add_row("Countries seen", str(len(self._country_counter)))
 
         grid = Table.grid(expand=True)

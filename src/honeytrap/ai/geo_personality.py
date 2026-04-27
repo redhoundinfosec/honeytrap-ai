@@ -57,7 +57,7 @@ _PERSONALITIES: dict[str, Personality] = {
             "финансы_Q1.xlsx",
             "backup_db.sql.gz",
         ),
-        welcome_banner='Добро пожаловать на внутренний сервер ТехноГрупп',
+        welcome_banner="Добро пожаловать на внутренний сервер ТехноГрупп",
         language_hint="ru",
     ),
     "CN": Personality(

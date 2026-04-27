@@ -183,9 +183,7 @@ class SSHHandler(ProtocolHandler):
             process.stdout.write(prompt.encode())
             while True:
                 try:
-                    line = await asyncio.wait_for(
-                        process.stdin.readline(), timeout=idle_timeout
-                    )
+                    line = await asyncio.wait_for(process.stdin.readline(), timeout=idle_timeout)
                 except asyncio.TimeoutError:
                     await self.log_timeout_event(ip, port, idle_timeout)
                     break

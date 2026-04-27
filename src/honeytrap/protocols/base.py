@@ -73,9 +73,7 @@ class ProtocolHandler(ABC):
     # ------------------------------------------------------------------
     # Security primitives shared across protocols
     # ------------------------------------------------------------------
-    async def check_connection_allowed(
-        self, remote_ip: str
-    ) -> tuple[bool, RateLimitDecision, str]:
+    async def check_connection_allowed(self, remote_ip: str) -> tuple[bool, RateLimitDecision, str]:
         """Run rate-limit + guardian checks for a new connection.
 
         Returns ``(allow, decision, guardian_reason)`` so the caller can

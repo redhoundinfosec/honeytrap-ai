@@ -76,9 +76,7 @@ async def test_rate_limiter_global_cap() -> None:
 
 @pytest.mark.asyncio
 async def test_rate_limiter_per_ip_concurrent_cap() -> None:
-    limiter = RateLimiter(
-        max_per_minute=600, burst=100, per_ip_concurrent=2, global_concurrent=100
-    )
+    limiter = RateLimiter(max_per_minute=600, burst=100, per_ip_concurrent=2, global_concurrent=100)
     await limiter.acquire("1.1.1.1")
     await limiter.acquire("1.1.1.1")
     decision = await limiter.check("1.1.1.1")
@@ -99,9 +97,7 @@ async def test_rate_limiter_cleans_stale_entries() -> None:
 
 @pytest.mark.asyncio
 async def test_rate_limiter_tarpit_returns_delay() -> None:
-    limiter = RateLimiter(
-        max_per_minute=1, burst=1, tarpit_on_limit=True, tarpit_seconds=0.5
-    )
+    limiter = RateLimiter(max_per_minute=1, burst=1, tarpit_on_limit=True, tarpit_seconds=0.5)
     assert (await limiter.check("x")).allowed
     decision = await limiter.check("x")
     assert decision.allowed is False

@@ -18,9 +18,7 @@ def test_session_memory_returns_snapshot(client: ApiClient) -> None:
         },
     )
     _, token = make_key(client, name="v", role=Role.VIEWER)
-    status, payload = client.json(
-        "GET", "/api/v1/sessions/sess-1/memory", token=token
-    )
+    status, payload = client.json("GET", "/api/v1/sessions/sess-1/memory", token=token)
     assert status == 200
     assert payload["session_id"] == "sess-1"
     assert payload["intent"] == "RECON"
@@ -29,16 +27,12 @@ def test_session_memory_returns_snapshot(client: ApiClient) -> None:
 
 def test_session_memory_missing_returns_404(client: ApiClient) -> None:
     _, token = make_key(client, name="v", role=Role.VIEWER)
-    status, _payload = client.json(
-        "GET", "/api/v1/sessions/unknown-session/memory", token=token
-    )
+    status, _payload = client.json("GET", "/api/v1/sessions/unknown-session/memory", token=token)
     assert status == 404
 
 
 def test_session_memory_requires_auth(client: ApiClient) -> None:
-    status, _hdrs, _body = client.request(
-        "GET", "/api/v1/sessions/sess-1/memory"
-    )
+    status, _hdrs, _body = client.request("GET", "/api/v1/sessions/sess-1/memory")
     assert status == 401
 
 

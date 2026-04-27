@@ -201,9 +201,7 @@ class RateLimiter:
     async def stats(self) -> dict[str, Any]:
         """Return a snapshot of current limiter state."""
         async with self._lock:
-            top_blocked = sorted(
-                self._blocked_ips.items(), key=lambda kv: kv[1], reverse=True
-            )[:20]
+            top_blocked = sorted(self._blocked_ips.items(), key=lambda kv: kv[1], reverse=True)[:20]
             return {
                 "enabled": self.enabled,
                 "global_active": self._global_active,

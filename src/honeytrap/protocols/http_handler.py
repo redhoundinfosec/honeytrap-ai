@@ -43,7 +43,9 @@ class HTTPHandler(ProtocolHandler):
             loader=FileSystemLoader(str(_TEMPLATE_DIR)),
             autoescape=select_autoescape(["html"]),
         )
-        server_header = str(service.data.get("server_header") or service.banner or "Apache/2.4.49 (Ubuntu)")
+        server_header = str(
+            service.data.get("server_header") or service.banner or "Apache/2.4.49 (Ubuntu)"
+        )
         self.server_header = server_header
 
     # ------------------------------------------------------------------
@@ -134,9 +136,7 @@ class HTTPHandler(ProtocolHandler):
         # before we allocate any session state.
         header_check = self.engine.sanitizer.check_http_headers(request.headers)
         if not header_check.ok:
-            await self.log_sanitizer_event(
-                remote_ip, remote_port, header_check.reason
-            )
+            await self.log_sanitizer_event(remote_ip, remote_port, header_check.reason)
             return web.Response(
                 text="Bad Request",
                 status=400,
@@ -219,9 +219,7 @@ class HTTPHandler(ProtocolHandler):
     # ------------------------------------------------------------------
     # Rendering
     # ------------------------------------------------------------------
-    async def _render_response(
-        self, match, path, personality, request
-    ) -> web.StreamResponse:
+    async def _render_response(self, match, path, personality, request) -> web.StreamResponse:
         """Turn a RuleMatch into an aiohttp Response."""
         headers = {"Server": self.server_header}
 
@@ -234,9 +232,7 @@ class HTTPHandler(ProtocolHandler):
         if match.category == "admin_panel":
             admin_path = match.metadata.get("admin_path", "")
             template = self._admin_template(admin_path)
-            body = self._render_template(
-                template, path=request.path, personality=personality
-            )
+            body = self._render_template(template, path=request.path, personality=personality)
             headers["Content-Type"] = "text/html"
             return web.Response(text=body, status=200, headers=headers)
 

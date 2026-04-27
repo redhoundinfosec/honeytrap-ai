@@ -193,9 +193,7 @@ class ResourceGuardian:
                 self._stats.refusals_triggered += 1
                 logger.critical("ResourceGuardian REFUSING new connections: %s", reason)
             elif not refuse and self._stats.should_refuse:
-                logger.warning(
-                    "ResourceGuardian recovered — accepting new connections again"
-                )
+                logger.warning("ResourceGuardian recovered — accepting new connections again")
             self._stats.should_refuse = refuse
             self._stats.refusal_reason = reason
 
@@ -218,9 +216,7 @@ class ResourceGuardian:
             except Exception as exc:  # noqa: BLE001 — never let the loop die
                 logger.exception("Guardian check failed: %s", exc)
             try:
-                await asyncio.wait_for(
-                    self._stop.wait(), timeout=self.check_interval
-                )
+                await asyncio.wait_for(self._stop.wait(), timeout=self.check_interval)
             except asyncio.TimeoutError:
                 continue
 

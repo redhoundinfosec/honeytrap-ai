@@ -110,18 +110,18 @@ def validate_object(obj: StixObject) -> None:
     if stix_type not in _VALID_TYPES:
         raise StixValidationError(f"Unsupported STIX type: {stix_type!r}")
     sid = obj.get("id")
-    if not isinstance(sid, str) or not sid.startswith(f"{stix_type}--") or len(sid) < len(stix_type) + 38:
+    if (
+        not isinstance(sid, str)
+        or not sid.startswith(f"{stix_type}--")
+        or len(sid) < len(stix_type) + 38
+    ):
         raise StixValidationError(f"Bad STIX id for {stix_type}: {sid!r}")
     spec = obj.get("spec_version")
     if spec != STIX_SPEC_VERSION:
-        raise StixValidationError(
-            f"spec_version must be {STIX_SPEC_VERSION!r}, got {spec!r}"
-        )
+        raise StixValidationError(f"spec_version must be {STIX_SPEC_VERSION!r}, got {spec!r}")
     for field in _REQUIRED_FIELDS[stix_type]:
         if field not in obj:
-            raise StixValidationError(
-                f"Required field {field!r} missing from {stix_type} object"
-            )
+            raise StixValidationError(f"Required field {field!r} missing from {stix_type} object")
 
 
 def validate_bundle(bundle: dict[str, Any]) -> None:
@@ -362,7 +362,9 @@ class StixBundleBuilder:
         if not object_refs:
             raise StixValidationError("note requires at least one object_ref")
         natural = hashlib.sha256(
-            ("note::" + abstract + "::" + content + "::" + ",".join(sorted(object_refs))).encode("utf-8")
+            ("note::" + abstract + "::" + content + "::" + ",".join(sorted(object_refs))).encode(
+                "utf-8"
+            )
         ).hexdigest()
         sid = self._resolve_id("note", natural)
         obj = self._common("note", sid)

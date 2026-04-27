@@ -187,20 +187,15 @@ def protocol_distribution_chart(events_by_protocol: list[dict[str, Any]]) -> str
         return ""
 
 
-def country_distribution_chart(
-    country_data: list[dict[str, Any]], top_n: int = 15
-) -> str:
+def country_distribution_chart(country_data: list[dict[str, Any]], top_n: int = 15) -> str:
     """Horizontal bar chart of the top attacking countries."""
     if _is_empty(country_data):
         return _empty("No geographic data")
 
     try:
-        rows = sorted(
-            country_data, key=lambda r: int(r.get("events", 0)), reverse=True
-        )[:top_n]
+        rows = sorted(country_data, key=lambda r: int(r.get("events", 0)), reverse=True)[:top_n]
         labels = [
-            f"{row.get('country_code', '??')} {row.get('country_name', '')}".strip()
-            for row in rows
+            f"{row.get('country_code', '??')} {row.get('country_name', '')}".strip() for row in rows
         ]
         counts = [int(row.get("events", 0)) for row in rows]
         fig, ax = plt.subplots(figsize=_DEFAULT_SIZE, dpi=_DEFAULT_DPI)
@@ -218,21 +213,14 @@ def country_distribution_chart(
         return ""
 
 
-def attack_technique_chart(
-    techniques: list[dict[str, Any]], top_n: int = 10
-) -> str:
+def attack_technique_chart(techniques: list[dict[str, Any]], top_n: int = 10) -> str:
     """Horizontal bar chart of the most-observed MITRE ATT&CK techniques."""
     if _is_empty(techniques):
         return _empty("No ATT&CK techniques observed")
 
     try:
-        rows = sorted(
-            techniques, key=lambda r: int(r.get("events", 0)), reverse=True
-        )[:top_n]
-        labels = [
-            f"{row.get('technique_id', '')} {row.get('technique_name', '')}"
-            for row in rows
-        ]
+        rows = sorted(techniques, key=lambda r: int(r.get("events", 0)), reverse=True)[:top_n]
+        labels = [f"{row.get('technique_id', '')} {row.get('technique_name', '')}" for row in rows]
         counts = [int(row.get("events", 0)) for row in rows]
         fig, ax = plt.subplots(figsize=_DEFAULT_SIZE, dpi=_DEFAULT_DPI)
         _apply_theme(fig, ax)
@@ -255,9 +243,7 @@ def tactic_heatmap(tactic_data: list[dict[str, Any]]) -> str:
         return _empty("No ATT&CK tactic coverage")
 
     try:
-        rows = sorted(
-            tactic_data, key=lambda r: int(r.get("events", 0)), reverse=True
-        )
+        rows = sorted(tactic_data, key=lambda r: int(r.get("events", 0)), reverse=True)
         labels = [str(row.get("tactic", "unknown")) for row in rows]
         counts = [int(row.get("events", 0)) for row in rows]
         max_count = max(counts) if counts else 1
@@ -286,19 +272,14 @@ def tactic_heatmap(tactic_data: list[dict[str, Any]]) -> str:
         return ""
 
 
-def credential_chart(
-    top_credentials: list[dict[str, Any]], top_n: int = 10
-) -> str:
+def credential_chart(top_credentials: list[dict[str, Any]], top_n: int = 10) -> str:
     """Bar chart of the most-tried username:password combinations."""
     if _is_empty(top_credentials):
         return _empty("No credential attempts logged")
 
     try:
         rows = top_credentials[:top_n]
-        labels = [
-            f"{(row.get('username') or '-')}:{(row.get('password') or '-')}"
-            for row in rows
-        ]
+        labels = [f"{(row.get('username') or '-')}:{(row.get('password') or '-')}" for row in rows]
         counts = [int(row.get("attempts", 0)) for row in rows]
         fig, ax = plt.subplots(figsize=_DEFAULT_SIZE, dpi=_DEFAULT_DPI)
         _apply_theme(fig, ax)

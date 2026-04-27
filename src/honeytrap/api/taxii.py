@@ -80,9 +80,7 @@ class TaxiiCollections:
     def refresh(self, builder: StixBundleBuilder) -> None:
         """Replace the cached object list with the builder's output."""
         self.objects = builder.objects()
-        self.last_refreshed = datetime.now(timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%S.%f"
-        )[:-3] + "Z"
+        self.last_refreshed = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
     # -- helpers -----------------------------------------------------------
     def filter(
@@ -138,7 +136,7 @@ def build_bundle_from_service(
             techniques=techniques,
             tls=sess.get("tls"),
         )
-    for ioc in (iocs or []):
+    for ioc in iocs or []:
         if not ioc.get("session_id"):
             try:
                 stix_from_ioc(builder, ioc)
@@ -263,9 +261,7 @@ def manifest_envelope(
 
 def status_payload(status_id: str) -> dict[str, Any]:
     """Return the synthetic TAXII status document (always 'complete')."""
-    request_timestamp = datetime.now(timezone.utc).strftime(
-        "%Y-%m-%dT%H:%M:%S.%f"
-    )[:-3] + "Z"
+    request_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     return {
         "id": status_id or str(uuid.uuid4()),
         "status": "complete",

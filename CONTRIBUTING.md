@@ -21,17 +21,45 @@ pip install -e ".[dev,full]"
 ## Running the tests
 
 ```bash
-pytest
-pytest --cov=honeytrap               # with coverage
+pytest                                                # default selection (no benchmarks)
+pytest -m fuzz                                        # property-based fuzz tests
+pytest -m benchmark --benchmark-only                  # performance benchmarks
+pytest -m "not benchmark" --cov=src/honeytrap         # with coverage
 ```
+
+The default test run excludes the `benchmark` marker and is what CI runs on
+every PR. `pytest -m fuzz` runs the Hypothesis-based property tests; the
+nightly workflow runs them with `HYPOTHESIS_PROFILE=ci` for a 500-example
+budget.
 
 ## Lint and type checks
 
 ```bash
-ruff check .
-ruff format --check .
+ruff check src tests
+ruff format --check src tests
 mypy src/honeytrap
+codespell src/ tests/
 ```
+
+## Local quality gates (pre-commit)
+
+After installing the dev extras, register the hooks once:
+
+```bash
+pip install -e ".[dev]"
+pre-commit install
+```
+
+Hooks then run automatically on every `git commit`. To run them across the
+whole repo manually:
+
+```bash
+pre-commit run --all-files
+```
+
+The hook set covers ruff, ruff-format, mypy strict, codespell, end-of-file
+fixes, trailing whitespace, large-file detection, private-key detection, and
+YAML/TOML syntax checks.
 
 ## Adding a device profile
 
@@ -50,7 +78,9 @@ mypy src/honeytrap
 
 ## Pull request checklist
 
-- [ ] Passes `ruff check` and `pytest`.
+- [ ] Passes `pre-commit run --all-files`.
+- [ ] Passes `pytest -m "not benchmark" --cov=src/honeytrap` with coverage >= 90%.
+- [ ] Passes `mypy src/honeytrap` (strict).
 - [ ] Includes tests for new behavior where practical.
 - [ ] Updates README if user-facing behavior changes.
 - [ ] Uses type hints and docstrings throughout.

@@ -37,9 +37,7 @@ def test_sinks_flush_requires_admin(client: ApiClient) -> None:
 def test_sinks_flush_returns_count(client: ApiClient) -> None:
     client.service.set_sinks_flush_result("es-prod", {"flushed": 7, "sink": "es-prod"})
     _, admin_token = make_key(client, name="a", role=Role.ADMIN)
-    status, body = client.json(
-        "POST", "/api/v1/sinks/es-prod/flush", token=admin_token, body={}
-    )
+    status, body = client.json("POST", "/api/v1/sinks/es-prod/flush", token=admin_token, body={})
     assert status == 200
     assert body["flushed"] == 7
     assert body["sink"] == "es-prod"

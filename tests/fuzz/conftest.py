@@ -8,7 +8,21 @@ remains fast enough for CI.
 
 from __future__ import annotations
 
+import os
+
+from hypothesis import HealthCheck, settings
 from hypothesis import strategies as st
+
+# Hypothesis profiles. The "ci" profile is intended for the nightly fuzz
+# workflow and bumps the example budget so we exercise rare branches.
+settings.register_profile(
+    "ci",
+    max_examples=500,
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large],
+)
+settings.register_profile("default", max_examples=50, deadline=None)
+settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
 
 
 def random_buffer_strategy(max_size: int = 4096) -> st.SearchStrategy[bytes]:

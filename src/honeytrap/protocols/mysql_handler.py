@@ -328,7 +328,14 @@ class MySQLHandler(ProtocolHandler):
             )
 
             if not (granted or match.metadata.get("granted")):
-                io.write_packet(2, self._build_err(1045, "28000", f"Access denied for user '{username}'@'{remote_ip}' (using password: YES)"))
+                io.write_packet(
+                    2,
+                    self._build_err(
+                        1045,
+                        "28000",
+                        f"Access denied for user '{username}'@'{remote_ip}' (using password: YES)",
+                    ),
+                )
                 await io.drain()
                 return
 
@@ -384,9 +391,7 @@ class MySQLHandler(ProtocolHandler):
                     continue
 
                 # Unknown command — respond with an ERR so the client moves on.
-                io.write_packet(
-                    1, self._build_err(1047, "HY000", "Unknown command")
-                )
+                io.write_packet(1, self._build_err(1047, "HY000", "Unknown command"))
                 await io.drain()
         except Exception as exc:  # noqa: BLE001
             logger.exception("MySQL handler exception for %s: %s", remote_ip, exc)
@@ -660,7 +665,13 @@ _FAKE_USER_ROWS: tuple[list[str], ...] = (
     ["1", "admin", "$2b$12$KIX/abc123fakeh4sh", "admin@example.com", "2021-05-14 09:14:22"],
     ["2", "jsmith", "$2b$12$ABC/fakehashforjsmith", "jsmith@example.com", "2022-01-03 17:01:45"],
     ["3", "rpaul", "$2b$12$ZZZ/fakehashforrpaul01", "rpaul@example.com", "2023-07-19 08:50:10"],
-    ["4", "operator", "$2b$12$QQQ/operatorhashplace", "operator@example.com", "2024-11-02 22:33:09"],
+    [
+        "4",
+        "operator",
+        "$2b$12$QQQ/operatorhashplace",
+        "operator@example.com",
+        "2024-11-02 22:33:09",
+    ],
 )
 
 _DESCRIBE_COLUMNS = ["Field", "Type", "Null", "Key", "Default", "Extra"]

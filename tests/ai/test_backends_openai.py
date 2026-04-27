@@ -9,9 +9,9 @@ import asyncio
 import os
 from unittest.mock import patch
 
-from honeytrap.ai.backends._http import HTTPResponse
 from honeytrap.ai.backends import ResponseRequest
 from honeytrap.ai.backends import openai as openai_mod
+from honeytrap.ai.backends._http import HTTPResponse
 from honeytrap.ai.backends.openai import OpenAIBackend
 
 openai_mod._RETRY_BACKOFFS = (0.0, 0.0)

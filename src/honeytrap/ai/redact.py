@@ -16,13 +16,25 @@ forensic log.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from typing import TypeAlias
 
-_SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+_Replacement: TypeAlias = "str | Callable[[re.Match[str]], str]"
+_SECRET_PATTERNS: tuple[tuple[re.Pattern[str], _Replacement], ...] = (
     (re.compile(r"(?i)(password|passwd|pwd|pass)\s*[:=]\s*[^\s&;]+"), r"\1=<redacted>"),
     (re.compile(r"(?i)(api[_-]?key|token|secret)\s*[:=]\s*[A-Za-z0-9_\-]+"), r"\1=<redacted>"),
-    (re.compile(r"(?i)authorization:\s*bearer\s+[A-Za-z0-9_\-.=]+"), "Authorization: Bearer <redacted>"),
-    (re.compile(r"(?i)aws_secret_access_key\s*[:=]\s*[A-Za-z0-9/+=]+"), "aws_secret_access_key=<redacted>"),
-    (re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]+?-----END [A-Z ]+ PRIVATE KEY-----"), "<redacted-private-key>"),
+    (
+        re.compile(r"(?i)authorization:\s*bearer\s+[A-Za-z0-9_\-.=]+"),
+        "Authorization: Bearer <redacted>",
+    ),
+    (
+        re.compile(r"(?i)aws_secret_access_key\s*[:=]\s*[A-Za-z0-9/+=]+"),
+        "aws_secret_access_key=<redacted>",
+    ),
+    (
+        re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]+?-----END [A-Z ]+ PRIVATE KEY-----"),
+        "<redacted-private-key>",
+    ),
     (re.compile(r"\b[A-Za-z0-9]{32,}\b"), lambda m: _redact_long_tokens(m.group(0))),
 )
 

@@ -197,15 +197,11 @@ class SMTPHandler(ProtocolHandler):
                         )
                     )
                     if full_verb == "HELO":
-                        writer.write(
-                            f"250 {self.hostname}\r\n".encode()
-                        )
+                        writer.write(f"250 {self.hostname}\r\n".encode())
                     else:
                         self._write_ehlo(writer, client_hostname)
                 elif full_verb == "AUTH":
-                    await self._handle_auth(
-                        reader, writer, arg, remote_ip, remote_port, session
-                    )
+                    await self._handle_auth(reader, writer, arg, remote_ip, remote_port, session)
                 elif full_verb == "MAIL":
                     if not greeted:
                         writer.write(b"503 5.5.1 EHLO/HELO first\r\n")

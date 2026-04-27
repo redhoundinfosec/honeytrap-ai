@@ -171,9 +171,7 @@ class InputSanitizer:
             return cleaned[:max_length] + "..."
         return cleaned
 
-    def _check_null_bytes(
-        self, raw: bytes, *, hard_fail: bool = True
-    ) -> SanitizerResult:
+    def _check_null_bytes(self, raw: bytes, *, hard_fail: bool = True) -> SanitizerResult:
         """Flag payloads containing NUL bytes.
 
         Many handlers crash on unexpected NULs (they confuse C-backed

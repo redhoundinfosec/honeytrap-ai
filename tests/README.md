@@ -93,12 +93,51 @@ benchmark stability tips.
 - `test_tls_fingerprint_bench.py` — parse-only, JA3+JA4, end-to-end
   `TLSFingerprinter`.
 
+## Coverage
+
+Branch coverage is enforced via `pytest-cov` and `coverage[toml]`. The
+configuration lives in `pyproject.toml` under `[tool.coverage.run]` and
+`[tool.coverage.report]`:
+
+- `branch = true` — every conditional must be exercised both ways.
+- `source = ["src/honeytrap"]` plus an explicit `omit` list for
+  modules that genuinely require live external services or optional
+  binary deps (CLIs, TUI, asyncio wire-protocol servers, AI backend
+  HTTP transports, geoip2, weasyprint, the management API). The
+  per-module exemption list is documented in
+  `CHANGELOG_IMPROVEMENTS.md` under the Cycle 14B entry.
+- `fail_under = 90` — the test job in CI fails the build if coverage
+  drops below 90% on the targeted core.
+- `exclude_lines` — `pragma: no cover`, `TYPE_CHECKING`,
+  `NotImplementedError`, `@abstractmethod`, `__main__`.
+
+Run the gate locally:
+
+```sh
+pytest -m "not benchmark" \
+    --cov=src/honeytrap --cov-branch \
+    --cov-report=term-missing \
+    --cov-fail-under=90
+```
+
+Read `term-missing` output as: leftmost columns are statements/missed,
+branches/partial, then percentage; the rightmost column lists the
+specific line numbers and branch arrows (`A->B`) that were never
+exercised. To regenerate the XML used by CI for artifact upload:
+
+```sh
+pytest -m "not benchmark" --cov=src/honeytrap --cov-report=xml --cov-branch
+```
+
 ## Dev dependencies
 
-`hypothesis` and `pytest-benchmark` are dev-only; they live under
-`[project.optional-dependencies] dev` in `pyproject.toml` and are
-not pulled in by `pip install honeytrap-ai`. Install them with:
+`hypothesis`, `pytest-benchmark`, `pytest-cov`, `coverage[toml]`,
+`mypy`, `pre-commit`, `codespell`, and `types-PyYAML` are all dev-only;
+they live under `[project.optional-dependencies] dev` in
+`pyproject.toml` and are not pulled in by `pip install honeytrap-ai`.
+Install them with:
 
 ```sh
 pip install -e ".[dev]"
+pre-commit install
 ```

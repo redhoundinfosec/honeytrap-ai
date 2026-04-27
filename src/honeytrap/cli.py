@@ -274,7 +274,7 @@ def _interactive_profile(console: Console) -> str:
     selected = Prompt.ask("Select", choices=choices, default=choices[0])
     if selected == custom_idx:
         path_str = Prompt.ask("Path to profile YAML")
-        return path_str
+        return str(path_str)
     return bundled[int(selected) - 1].stem
 
 

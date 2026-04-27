@@ -343,10 +343,16 @@ class SessionDetailModal(ModalScreen[None]):
         end = min(len(self._replay_frames), self._frame_index + 6)
         for i in range(start, end):
             frame = self._replay_frames[i]
-            arrow = "->" if getattr(getattr(frame, "direction", None), "value", "") == "INBOUND" else "<-"
+            arrow = (
+                "->"
+                if getattr(getattr(frame, "direction", None), "value", "") == "INBOUND"
+                else "<-"
+            )
             cursor = ">>" if i == self._frame_index else "  "
             payload = getattr(frame, "payload", b"")
-            preview = payload[:32].decode("utf-8", "replace").replace("\r", "\\r").replace("\n", "\\n")
+            preview = (
+                payload[:32].decode("utf-8", "replace").replace("\r", "\\r").replace("\n", "\\n")
+            )
             lines.append(f"{cursor} {i:04d} {arrow} ({len(payload)}b) {preview}")
         return "\n".join(lines)
 

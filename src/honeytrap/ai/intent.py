@@ -181,29 +181,23 @@ def classify(
     uploads_blob = "\n".join(memory.uploaded_files)
     combined = "\n".join([commands_blob, uploads_blob]).strip()
 
-    scores: dict[IntentLabel, float] = {label: 0.0 for label in IntentLabel}
+    scores: dict[IntentLabel, float] = dict.fromkeys(IntentLabel, 0.0)
     rationale_map: dict[IntentLabel, list[str]] = {label: [] for label in IntentLabel}
 
     # Brute force: many failed auths on a single protocol.
     failed_auth = sum(1 for a in memory.auth_attempts if not a.success)
     if failed_auth >= 5:
         scores[IntentLabel.BRUTE_FORCE] += min(2.5, 0.3 * failed_auth)
-        rationale_map[IntentLabel.BRUTE_FORCE].append(
-            f"{failed_auth} failed auth attempts"
-        )
+        rationale_map[IntentLabel.BRUTE_FORCE].append(f"{failed_auth} failed auth attempts")
     elif failed_auth >= 2:
         scores[IntentLabel.BRUTE_FORCE] += 0.6
-        rationale_map[IntentLabel.BRUTE_FORCE].append(
-            f"{failed_auth} failed auth attempts"
-        )
+        rationale_map[IntentLabel.BRUTE_FORCE].append(f"{failed_auth} failed auth attempts")
 
     # Recon enumeration commands.
     recon_hits = _count_tokens(_RECON_TOKENS, combined)
     if recon_hits:
         scores[IntentLabel.RECON] += min(2.0, 0.4 * recon_hits)
-        rationale_map[IntentLabel.RECON].append(
-            f"{recon_hits} reconnaissance command tokens"
-        )
+        rationale_map[IntentLabel.RECON].append(f"{recon_hits} reconnaissance command tokens")
 
     # Exploit attempts (HTTP payloads, shell injections, traversal).
     exploit_hits = _count_matches(_EXPLOIT_PATTERNS, combined)
@@ -225,25 +219,19 @@ def classify(
     exfil_hits = _count_tokens(_EXFIL_TOKENS, combined)
     if exfil_hits:
         scores[IntentLabel.EXFILTRATION] += min(2.0, 0.6 * exfil_hits)
-        rationale_map[IntentLabel.EXFILTRATION].append(
-            f"{exfil_hits} exfiltration tokens"
-        )
+        rationale_map[IntentLabel.EXFILTRATION].append(f"{exfil_hits} exfiltration tokens")
 
     # Coin mining.
     miner_hits = _count_matches(_MINER_PATTERNS, combined)
     if miner_hits:
         scores[IntentLabel.COIN_MINING] += min(3.0, 1.0 * miner_hits)
-        rationale_map[IntentLabel.COIN_MINING].append(
-            f"{miner_hits} coin-miner signatures"
-        )
+        rationale_map[IntentLabel.COIN_MINING].append(f"{miner_hits} coin-miner signatures")
 
     # Persistence chains.
     persist_hits = _count_matches(_PERSISTENCE_PATTERNS, combined)
     if persist_hits:
         scores[IntentLabel.PERSISTENCE] += min(3.0, 0.9 * persist_hits)
-        rationale_map[IntentLabel.PERSISTENCE].append(
-            f"{persist_hits} persistence patterns"
-        )
+        rationale_map[IntentLabel.PERSISTENCE].append(f"{persist_hits} persistence patterns")
 
     # Lateral movement.
     lateral_hits = _count_matches(_LATERAL_PATTERNS, combined)
@@ -257,22 +245,16 @@ def classify(
     shell_hits = _count_matches(_WEBSHELL_PATTERNS, combined)
     if shell_hits:
         scores[IntentLabel.WEB_SHELL] += min(3.0, 1.2 * shell_hits)
-        rationale_map[IntentLabel.WEB_SHELL].append(
-            f"{shell_hits} web-shell artefacts"
-        )
+        rationale_map[IntentLabel.WEB_SHELL].append(f"{shell_hits} web-shell artefacts")
 
     # ATT&CK technique bias.
     techniques = memory.attck_techniques
     if "T1078" in techniques and "T1059" in techniques:
         scores[IntentLabel.CREDENTIAL_HARVEST] += 0.5
-        rationale_map[IntentLabel.CREDENTIAL_HARVEST].append(
-            "ATT&CK T1078 + T1059 co-occurrence"
-        )
+        rationale_map[IntentLabel.CREDENTIAL_HARVEST].append("ATT&CK T1078 + T1059 co-occurrence")
     if "T1190" in techniques:
         scores[IntentLabel.EXPLOIT_ATTEMPT] += 0.6
-        rationale_map[IntentLabel.EXPLOIT_ATTEMPT].append(
-            "ATT&CK T1190 observed"
-        )
+        rationale_map[IntentLabel.EXPLOIT_ATTEMPT].append("ATT&CK T1190 observed")
     if "T1110" in techniques:
         scores[IntentLabel.BRUTE_FORCE] += 0.4
         rationale_map[IntentLabel.BRUTE_FORCE].append("ATT&CK T1110 observed")

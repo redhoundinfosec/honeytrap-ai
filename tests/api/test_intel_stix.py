@@ -17,9 +17,7 @@ def _seed(client: ApiClient) -> None:
             {"id": "T1110", "name": "Brute Force", "tactic": "Credential Access"},
         ]
     )
-    client.service.set_stix_tls(
-        [{"ja3": "a" * 32, "ja4": "t13d", "label": "nmap"}]
-    )
+    client.service.set_stix_tls([{"ja3": "a" * 32, "ja4": "t13d", "label": "nmap"}])
 
 
 # ---------------------------------------------------------------------------
@@ -50,9 +48,7 @@ def test_stix_endpoint_returns_bundle(client: ApiClient) -> None:
 def test_stix_endpoint_filters_by_session(client: ApiClient) -> None:
     _seed(client)
     _, analyst_token = make_key(client, name="a", role=Role.ANALYST)
-    status, body = client.json(
-        "GET", "/api/v1/intel/stix?session_id=sess-1", token=analyst_token
-    )
+    status, body = client.json("GET", "/api/v1/intel/stix?session_id=sess-1", token=analyst_token)
     assert status == 200
     types = {o["type"] for o in body["objects"]}
     assert "infrastructure" in types
@@ -62,13 +58,9 @@ def test_stix_endpoint_filters_by_session(client: ApiClient) -> None:
 
 def test_stix_endpoint_filters_by_ip(client: ApiClient) -> None:
     _seed(client)
-    client.service.set_iocs(
-        [{"type": "ip", "value": "203.0.113.5", "session_id": "sess-1"}]
-    )
+    client.service.set_iocs([{"type": "ip", "value": "203.0.113.5", "session_id": "sess-1"}])
     _, analyst_token = make_key(client, name="a", role=Role.ANALYST)
-    status, body = client.json(
-        "GET", "/api/v1/intel/stix?ip=203.0.113.5", token=analyst_token
-    )
+    status, body = client.json("GET", "/api/v1/intel/stix?ip=203.0.113.5", token=analyst_token)
     assert status == 200
     indicators = [o for o in body["objects"] if o["type"] == "indicator"]
     assert any("203.0.113.5" in i.get("pattern", "") for i in indicators)
@@ -82,9 +74,7 @@ def test_stix_endpoint_filters_by_ip(client: ApiClient) -> None:
 def test_taxii_discovery_returns_taxii_content_type(client: ApiClient) -> None:
     _seed(client)
     _, viewer_token = make_key(client, name="v", role=Role.VIEWER)
-    status, headers, body = client.request(
-        "GET", f"{TAXII_PREFIX}/", token=viewer_token
-    )
+    status, headers, body = client.request("GET", f"{TAXII_PREFIX}/", token=viewer_token)
     assert status == 200
     assert headers["Content-Type"] == TAXII_CONTENT_TYPE
     payload = json.loads(body.decode("utf-8"))
@@ -94,14 +84,10 @@ def test_taxii_discovery_returns_taxii_content_type(client: ApiClient) -> None:
 def test_taxii_root_and_collections(client: ApiClient) -> None:
     _seed(client)
     _, viewer_token = make_key(client, name="v", role=Role.VIEWER)
-    status, body = client.json(
-        "GET", f"{TAXII_PREFIX}/honeytrap/", token=viewer_token
-    )
+    status, body = client.json("GET", f"{TAXII_PREFIX}/honeytrap/", token=viewer_token)
     assert status == 200
     assert body["versions"] == [TAXII_CONTENT_TYPE]
-    status, body = client.json(
-        "GET", f"{TAXII_PREFIX}/honeytrap/collections/", token=viewer_token
-    )
+    status, body = client.json("GET", f"{TAXII_PREFIX}/honeytrap/collections/", token=viewer_token)
     assert status == 200
     ids = {c["id"] for c in body["collections"]}
     assert COLLECTION_IDS["indicators"] in ids

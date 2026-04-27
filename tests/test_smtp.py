@@ -196,7 +196,11 @@ async def test_auth_plain_decodes_credentials(tmp_path: Path) -> None:
                 ev = await asyncio.wait_for(queue.get(), timeout=deadline - loop.time())
             except asyncio.TimeoutError:
                 break
-            if ev.event_type == "auth_attempt" and ev.username == "badguy" and ev.password == "hunter2":
+            if (
+                ev.event_type == "auth_attempt"
+                and ev.username == "badguy"
+                and ev.password == "hunter2"
+            ):
                 found = True
         engine.unsubscribe(queue)
         assert found

@@ -2,7 +2,7 @@
 
 Each renderer is a free function returning a JSON-serializable dict (or
 plain text for the email bodies). Keeping them pure makes them trivial
-to test and trivial to re-use from outside the channel classes.
+to test and trivial to reuse from outside the channel classes.
 """
 
 from __future__ import annotations

@@ -246,9 +246,7 @@ def _apply_dict(cfg: Config, data: dict[str, Any]) -> Config:
     for section_name, section_data in data.items():
         if section_name == "alerts" and isinstance(section_data, dict):
             cfg.alerts.enabled = bool(section_data.get("enabled", cfg.alerts.enabled))
-            cfg.alerts.min_severity = str(
-                section_data.get("min_severity", cfg.alerts.min_severity)
-            )
+            cfg.alerts.min_severity = str(section_data.get("min_severity", cfg.alerts.min_severity))
             cfg.alerts.dry_run = bool(section_data.get("dry_run", cfg.alerts.dry_run))
             channels = section_data.get("channels")
             if isinstance(channels, list):
@@ -259,9 +257,7 @@ def _apply_dict(cfg: Config, data: dict[str, Any]) -> Config:
             cfg.sinks.queue_capacity = int(
                 section_data.get("queue_capacity", cfg.sinks.queue_capacity)
             )
-            cfg.sinks.on_overflow = str(
-                section_data.get("on_overflow", cfg.sinks.on_overflow)
-            )
+            cfg.sinks.on_overflow = str(section_data.get("on_overflow", cfg.sinks.on_overflow))
             targets = section_data.get("targets")
             if isinstance(targets, list):
                 cfg.sinks.targets = [t for t in targets if isinstance(t, dict)]
@@ -283,21 +279,21 @@ def _apply_dict(cfg: Config, data: dict[str, Any]) -> Config:
 def _apply_env(cfg: Config) -> Config:
     """Apply ``HONEYTRAP_*`` environment overrides."""
     # A few well-known overrides map to typed fields.
-    if (value := os.environ.get("HONEYTRAP_AI_ADAPTIVE")):
+    if value := os.environ.get("HONEYTRAP_AI_ADAPTIVE"):
         cfg.ai.adaptive_enabled = value.lower() in {"1", "true", "yes", "on"}
-    if (value := os.environ.get("HONEYTRAP_AI_FORCE_BACKEND")):
+    if value := os.environ.get("HONEYTRAP_AI_FORCE_BACKEND"):
         cfg.ai.force_backend = value
-    if (value := os.environ.get("HONEYTRAP_AI_KEY")):
+    if value := os.environ.get("HONEYTRAP_AI_KEY"):
         cfg.ai.api_key = value
-    if (value := os.environ.get("HONEYTRAP_AI_ENDPOINT")):
+    if value := os.environ.get("HONEYTRAP_AI_ENDPOINT"):
         cfg.ai.endpoint = value
-    if (value := os.environ.get("HONEYTRAP_AI_MODEL")):
+    if value := os.environ.get("HONEYTRAP_AI_MODEL"):
         cfg.ai.model = value
-    if (value := os.environ.get("HONEYTRAP_AI_PROVIDER")):
+    if value := os.environ.get("HONEYTRAP_AI_PROVIDER"):
         cfg.ai.provider = value
-    if (value := os.environ.get("HONEYTRAP_LOG_DIR")):
+    if value := os.environ.get("HONEYTRAP_LOG_DIR"):
         cfg.general.log_directory = value
-    if (value := os.environ.get("HONEYTRAP_MAXMIND_DB")):
+    if value := os.environ.get("HONEYTRAP_MAXMIND_DB"):
         cfg.geo.maxmind_db = value
     return cfg
 

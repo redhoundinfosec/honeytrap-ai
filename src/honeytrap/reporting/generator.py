@@ -157,10 +157,7 @@ class ReportGenerator:
             _table(
                 "Novel Patterns",
                 ["Kind", "Value", "Count"],
-                [
-                    [n["kind"], n["value"], n["count"]]
-                    for n in snap.novel_patterns
-                ],
+                [[n["kind"], n["value"], n["count"]] for n in snap.novel_patterns],
             )
         )
         con.print(
@@ -183,30 +180,21 @@ class ReportGenerator:
             _table(
                 "ATT&CK Tactic Distribution",
                 ["Tactic", "Events", "Techniques"],
-                [
-                    [t["tactic"], t["events"], t["techniques"]]
-                    for t in snap.tactic_distribution
-                ],
+                [[t["tactic"], t["events"], t["techniques"]] for t in snap.tactic_distribution],
             )
         )
         con.print(
             _table(
                 "Indicators of Compromise — Summary",
                 ["Type", "Unique Values", "Sightings"],
-                [
-                    [i["type"], i["unique_values"], i["sightings"]]
-                    for i in snap.ioc_summary
-                ],
+                [[i["type"], i["unique_values"], i["sightings"]] for i in snap.ioc_summary],
             )
         )
         con.print(
             _table(
                 "Top IOCs",
                 ["Type", "Value", "Sightings"],
-                [
-                    [i["type"], i["value"][:80], i["sightings"]]
-                    for i in snap.top_iocs
-                ],
+                [[i["type"], i["value"][:80], i["sightings"]] for i in snap.top_iocs],
             )
         )
 
@@ -317,9 +305,7 @@ class ReportGenerator:
         session_links: list[dict[str, str]] = []
         for meta in sessions:
             frames = session_store.load_frames(meta.session_id)
-            timeline = Timeline.for_session(
-                session_store, meta.session_id, redact=redact
-            )
+            timeline = Timeline.for_session(session_store, meta.session_id, redact=redact)
             page = timeline.to_html(title=f"Session {meta.session_id}")
             page_path = sessions_dir / f"{meta.session_id}.html"
             page_path.write_text(page, encoding="utf-8")

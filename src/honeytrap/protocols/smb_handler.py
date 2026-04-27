@@ -107,9 +107,7 @@ class SMBHandler(ProtocolHandler):
         try:
             for _ in range(8):  # read up to 8 SMB packets then drop
                 try:
-                    header = await asyncio.wait_for(
-                        reader.readexactly(4), timeout=idle_timeout
-                    )
+                    header = await asyncio.wait_for(reader.readexactly(4), timeout=idle_timeout)
                 except asyncio.TimeoutError:
                     await self.log_timeout_event(remote_ip, remote_port, idle_timeout)
                     break
@@ -128,9 +126,7 @@ class SMBHandler(ProtocolHandler):
                     )
                     break
                 try:
-                    body = await asyncio.wait_for(
-                        reader.readexactly(length), timeout=idle_timeout
-                    )
+                    body = await asyncio.wait_for(reader.readexactly(length), timeout=idle_timeout)
                 except asyncio.TimeoutError:
                     await self.log_timeout_event(remote_ip, remote_port, idle_timeout)
                     break

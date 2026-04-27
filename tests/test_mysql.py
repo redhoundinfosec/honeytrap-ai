@@ -382,7 +382,9 @@ async def test_query_event_logged_with_sql_injection_mapping(tmp_path: Path) -> 
         queue = engine.subscribe()
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
         await _login(reader, writer, "root")
-        _write_packet(writer, 0, b"\x03SELECT * FROM users WHERE 1=1 UNION SELECT * FROM mysql.user")
+        _write_packet(
+            writer, 0, b"\x03SELECT * FROM users WHERE 1=1 UNION SELECT * FROM mysql.user"
+        )
         await writer.drain()
         await _read_resultset(reader)
         writer.close()

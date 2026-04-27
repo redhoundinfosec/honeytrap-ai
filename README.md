@@ -637,15 +637,28 @@ ruff check .
 
 ### Quality & Testing
 
-The dev extras pull in `hypothesis` and `pytest-benchmark` so the
-fuzz and benchmark suites run locally:
+[![CI](https://img.shields.io/github/actions/workflow/status/redhoundinfosec/honeytrap-ai/ci.yml?branch=main&label=CI)](https://github.com/redhoundinfosec/honeytrap-ai/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![tests](https://img.shields.io/badge/tests-577%2B%20passing-brightgreen)](tests/)
+[![coverage](https://img.shields.io/badge/coverage-%E2%89%A590%25-brightgreen)](tests/)
+[![mypy](https://img.shields.io/badge/mypy-strict-blueviolet)](pyproject.toml)
+
+The dev extras pull in `hypothesis`, `pytest-benchmark`, `pytest-cov`,
+`mypy`, `pre-commit`, and `codespell` so the full quality gate runs
+locally:
 
 ```bash
-# Install dev dependencies (includes hypothesis, pytest-benchmark)
+# Install dev dependencies (includes hypothesis, pytest-benchmark, mypy, ruff, pre-commit)
 pip install -e ".[dev]"
 
-# Default: runs unit + property-based fuzz tests, excludes benchmarks
-pytest
+# Register git hooks (ruff, ruff-format, mypy, codespell, file hygiene)
+pre-commit install
+
+# Run all hooks on the whole repo
+pre-commit run --all-files
+
+# Default test selection (unit + fuzz, excludes benchmarks) with coverage
+pytest -m "not benchmark" --cov=src/honeytrap --cov-branch --cov-fail-under=90
 
 # Only the property-based fuzz tests (Hypothesis)
 pytest -m fuzz
@@ -659,10 +672,17 @@ pytest tests/bench/ --benchmark-only
 # Save a benchmark baseline and diff future runs against it
 pytest tests/bench/ --benchmark-only --benchmark-autosave
 pytest-benchmark compare 0001 0002
+
+# Strict mypy (enforced in CI)
+mypy src/honeytrap
 ```
 
-See `tests/README.md` for a tour of the layout (unit, fuzz, bench)
-and the full marker list.
+CI runs `lint`, `typecheck`, and `test` (Python 3.11 and 3.12) on every
+push and PR; a separate nightly workflow exercises the fuzz suite with
+`HYPOTHESIS_PROFILE=ci` (500 examples per property).
+
+See `tests/README.md` for a tour of the layout (unit, fuzz, bench),
+the full marker list, and the coverage policy.
 
 ---
 

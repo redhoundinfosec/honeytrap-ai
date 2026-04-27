@@ -136,9 +136,7 @@ class FTPHandler(ProtocolHandler):
                     break
                 except asyncio.LimitOverrunError:
                     # Oversized single line — matches the sanitizer's intent.
-                    await self.log_sanitizer_event(
-                        remote_ip, remote_port, "ftp_line_overrun"
-                    )
+                    await self.log_sanitizer_event(remote_ip, remote_port, "ftp_line_overrun")
                     break
                 if not raw:
                     break
@@ -186,14 +184,20 @@ class FTPHandler(ProtocolHandler):
                             data={"tags": match.tags, "granted": match.metadata.get("granted")},
                         )
                     )
-                    if self.allow_anonymous and username.lower() in {"anonymous", "ftp"} or match.metadata.get("granted"):
+                    if (
+                        self.allow_anonymous
+                        and username.lower() in {"anonymous", "ftp"}
+                        or match.metadata.get("granted")
+                    ):
                         writer.write(b"230 Login successful.\r\n")
                     else:
                         writer.write(b"530 Login incorrect.\r\n")
                 elif cmd == "SYST":
                     writer.write(b"215 UNIX Type: L8\r\n")
                 elif cmd == "FEAT":
-                    writer.write(b"211-Features:\r\n MDTM\r\n PASV\r\n SIZE\r\n UTF8\r\n211 End\r\n")
+                    writer.write(
+                        b"211-Features:\r\n MDTM\r\n PASV\r\n SIZE\r\n UTF8\r\n211 End\r\n"
+                    )
                 elif cmd == "PWD":
                     writer.write(f'257 "{cwd}" is the current directory\r\n'.encode())
                 elif cmd == "CWD":

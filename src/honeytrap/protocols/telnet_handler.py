@@ -138,9 +138,7 @@ class TelnetHandler(ProtocolHandler):
             idle_timeout = self.idle_timeout()
             while not reader.at_eof():
                 try:
-                    line = await asyncio.wait_for(
-                        self._readline(reader), timeout=idle_timeout
-                    )
+                    line = await asyncio.wait_for(self._readline(reader), timeout=idle_timeout)
                 except asyncio.TimeoutError:
                     await self.log_timeout_event(remote_ip, remote_port, idle_timeout)
                     break

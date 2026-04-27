@@ -232,10 +232,7 @@ class RuleEngine:
             weak = service.data.get("weak_credentials", []) or []
 
         for entry in weak:
-            if (
-                entry.get("username") == username
-                and entry.get("password") == password
-            ):
+            if entry.get("username") == username and entry.get("password") == password:
                 tags.append("weak_cred_hit")
                 return RuleMatch(
                     category="auth_success",
@@ -329,7 +326,7 @@ class RuleEngine:
         if path.endswith("/.git/config"):
             return (
                 "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n"
-                "[remote \"origin\"]\n\turl = git@github.com:technova/internal.git\n"
+                '[remote "origin"]\n\turl = git@github.com:technova/internal.git\n'
                 "\tfetch = +refs/heads/*:refs/remotes/origin/*\n"
             )
         if path.endswith("/etc/passwd"):
@@ -350,7 +347,7 @@ class RuleEngine:
         """Return an Apache-style 404 body."""
         safe_path = re.sub(r"[<>\"]", "", path)
         return (
-            "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML 2.0//EN\">\n"
+            '<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">\n'
             "<html><head>\n"
             "<title>404 Not Found</title>\n"
             "</head><body>\n"

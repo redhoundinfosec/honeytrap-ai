@@ -112,7 +112,9 @@ class SessionManager:
         )
         self._active[session_id] = session
         self._by_ip[remote_ip].append(session_id)
-        logger.debug("Session %s created for %s:%d (%s)", session_id, remote_ip, remote_port, protocol)
+        logger.debug(
+            "Session %s created for %s:%d (%s)", session_id, remote_ip, remote_port, protocol
+        )
         return session
 
     def close(self, session_id: str) -> Session | None:

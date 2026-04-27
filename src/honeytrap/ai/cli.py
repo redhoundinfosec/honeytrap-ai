@@ -24,7 +24,7 @@ def _resolve_input(raw: str) -> str:
     return raw
 
 
-async def _async_ai_test(args: argparse.Namespace, cfg: "Config") -> int:
+async def _async_ai_test(args: argparse.Namespace, cfg: Config) -> int:
     from honeytrap.ai.backends import ResponseRequest
 
     chain = build_backend([{"type": args.backend}], prompts_dir=cfg.ai.prompts_dir)
@@ -49,7 +49,7 @@ async def _async_ai_test(args: argparse.Namespace, cfg: "Config") -> int:
     return 0
 
 
-def run_ai_command(args: argparse.Namespace, cfg: "Config") -> int:
+def run_ai_command(args: argparse.Namespace, cfg: Config) -> int:
     """Dispatch ``honeytrap ai ...`` subcommands."""
     sub = getattr(args, "ai_command", None)
     if sub == "test":

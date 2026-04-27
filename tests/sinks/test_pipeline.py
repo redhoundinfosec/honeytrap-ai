@@ -46,13 +46,17 @@ class _FakeMetrics:
     def register(self, *_a: Any, **_k: Any) -> None:
         return None
 
-    def inc_counter(self, name: str, value: float = 1.0, labels: dict[str, str] | None = None) -> None:
+    def inc_counter(
+        self, name: str, value: float = 1.0, labels: dict[str, str] | None = None
+    ) -> None:
         self.counters.append((name, value, dict(labels) if labels else None))
 
     def set_gauge(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
         self.gauges.append((name, value, dict(labels) if labels else None))
 
-    def observe_histogram(self, name: str, value: float, buckets: tuple[float, ...] | None = None) -> None:
+    def observe_histogram(
+        self, name: str, value: float, buckets: tuple[float, ...] | None = None
+    ) -> None:
         self.histos.append((name, value))
 
 
@@ -135,14 +139,18 @@ async def test_circuit_breaker_opens_after_threshold() -> None:
             async def _do() -> None:
                 await sink.send_batch([{"x": 1}])
 
-            await execute_with_retry(_do, policy=policy, breaker=breaker, sleep=lambda _x: asyncio.sleep(0))
+            await execute_with_retry(
+                _do, policy=policy, breaker=breaker, sleep=lambda _x: asyncio.sleep(0)
+            )
     assert breaker.state is BreakerState.OPEN
     with pytest.raises(RuntimeError):
 
         async def _do2() -> None:
             await sink.send_batch([{"x": 1}])
 
-        await execute_with_retry(_do2, policy=policy, breaker=breaker, sleep=lambda _x: asyncio.sleep(0))
+        await execute_with_retry(
+            _do2, policy=policy, breaker=breaker, sleep=lambda _x: asyncio.sleep(0)
+        )
 
 
 @pytest.mark.asyncio

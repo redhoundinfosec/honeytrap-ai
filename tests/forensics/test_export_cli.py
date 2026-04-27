@@ -128,8 +128,6 @@ def test_export_stix_writes_bundle(tmp_path: Path, capsys) -> None:
 def test_export_stix_no_match_returns_error(tmp_path: Path, capsys) -> None:
     _populate(tmp_path)
     out = tmp_path / "bundle.json"
-    args = _parser().parse_args(
-        ["export", "stix", "--session", "nope", "--out", str(out)]
-    )
+    args = _parser().parse_args(["export", "stix", "--session", "nope", "--out", str(out)])
     code = run_export(args, _config(tmp_path))
     assert code == 1

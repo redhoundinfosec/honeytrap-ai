@@ -16,9 +16,37 @@ from honeytrap.reporting.pdf_export import PDFExportError, export_pdf, is_availa
 
 
 def _populate(db: AttackDatabase) -> None:
-    db.record_event(Event(protocol="http", event_type="http_request", remote_ip="1.1.1.1", country_code="US", country_name="United States", path="/admin"))
-    db.record_event(Event(protocol="ssh", event_type="auth_attempt", remote_ip="2.2.2.2", country_code="RU", country_name="Russia", username="root", password="toor"))
-    db.record_event(Event(protocol="http", event_type="exploit_attempt", remote_ip="3.3.3.3", country_code="CN", country_name="China", path="/.env"))
+    db.record_event(
+        Event(
+            protocol="http",
+            event_type="http_request",
+            remote_ip="1.1.1.1",
+            country_code="US",
+            country_name="United States",
+            path="/admin",
+        )
+    )
+    db.record_event(
+        Event(
+            protocol="ssh",
+            event_type="auth_attempt",
+            remote_ip="2.2.2.2",
+            country_code="RU",
+            country_name="Russia",
+            username="root",
+            password="toor",
+        )
+    )
+    db.record_event(
+        Event(
+            protocol="http",
+            event_type="exploit_attempt",
+            remote_ip="3.3.3.3",
+            country_code="CN",
+            country_name="China",
+            path="/.env",
+        )
+    )
 
 
 def test_report_snapshot(tmp_path: Path) -> None:

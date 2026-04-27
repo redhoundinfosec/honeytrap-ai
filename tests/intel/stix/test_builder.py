@@ -28,7 +28,9 @@ from honeytrap.intel.stix.patterns import (
     url_pattern,
 )
 
-_STIX_ID_RE = re.compile(r"^[a-z][a-z0-9-]*--[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+_STIX_ID_RE = re.compile(
+    r"^[a-z][a-z0-9-]*--[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
 
 
 def test_pattern_helpers_emit_quoted_predicates() -> None:

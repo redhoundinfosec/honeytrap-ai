@@ -37,9 +37,7 @@ def test_messages_envelope_is_parsed() -> None:
 
     with patch("honeytrap.ai.backends.anthropic.post_json", side_effect=fake):
         result = _run(
-            backend.generate(
-                ResponseRequest(protocol="ssh", inbound="whoami", session_id="x")
-            )
+            backend.generate(ResponseRequest(protocol="ssh", inbound="whoami", session_id="x"))
         )
     assert result.content == "root\n"
     assert result.tokens_used == 6

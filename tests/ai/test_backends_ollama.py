@@ -31,9 +31,7 @@ def test_api_chat_body_shape() -> None:
 
     with patch("honeytrap.ai.backends.ollama.post_json", side_effect=fake):
         result = _run(
-            backend.generate(
-                ResponseRequest(protocol="ssh", inbound="whoami", session_id="s")
-            )
+            backend.generate(ResponseRequest(protocol="ssh", inbound="whoami", session_id="s"))
         )
     assert seen["url"].endswith("/api/chat")
     assert seen["body"]["model"] == "llama3.1:8b"
@@ -49,9 +47,7 @@ def test_empty_response_fails_over() -> None:
 
     with patch("honeytrap.ai.backends.ollama.post_json", side_effect=fake):
         result = _run(
-            backend.generate(
-                ResponseRequest(protocol="ssh", inbound="whoami", session_id="s")
-            )
+            backend.generate(ResponseRequest(protocol="ssh", inbound="whoami", session_id="s"))
         )
     assert result.content == ""
     assert result.shape_ok is False

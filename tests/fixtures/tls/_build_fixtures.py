@@ -11,7 +11,6 @@ from __future__ import annotations
 import struct
 from pathlib import Path
 
-
 HERE = Path(__file__).parent
 
 

@@ -21,7 +21,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from honeytrap.ai.backends import ChainBackend, ResponseRequest, ResponseResult, TemplateBackend
+from honeytrap.ai.backends import ChainBackend, ResponseRequest, TemplateBackend
 from honeytrap.ai.cache import ResponseCache
 from honeytrap.ai.intent import HIGH_SEVERITY_LABELS, IntentLabel, classify
 from honeytrap.ai.memory import SessionMemory
@@ -58,7 +58,7 @@ class ProtocolResponder:
         *,
         chain: ChainBackend | None = None,
         cache: ResponseCache | None = None,
-        metrics: "MetricsRegistry | None" = None,
+        metrics: MetricsRegistry | None = None,
         enabled: bool = False,
         redact_secrets: bool = True,
         alert_callback: Any | None = None,
@@ -166,7 +166,9 @@ class ProtocolResponder:
                 cached=False,
                 shape_ok=True,
             )
-        inbound_str = inbound.decode("utf-8", errors="replace") if isinstance(inbound, bytes) else inbound
+        inbound_str = (
+            inbound.decode("utf-8", errors="replace") if isinstance(inbound, bytes) else inbound
+        )
         truncated = inbound_str[:4096]
         memory.record_command(truncated, protocol=protocol)
         label, confidence, rationale = classify(memory)

@@ -679,9 +679,9 @@ class APIServer:
                 sessions = [s for s in sessions if str(s.get("started_at", "")) <= until]
             iocs = self.service.stix_iocs()
             if ip:
-                iocs = [i for i in iocs if i.get("value") != ip or i.get("type") not in {"ip", "ipv4"}] + [
-                    i for i in self.service.stix_iocs() if i.get("value") == ip
-                ]
+                iocs = [
+                    i for i in iocs if i.get("value") != ip or i.get("type") not in {"ip", "ipv4"}
+                ] + [i for i in self.service.stix_iocs() if i.get("value") == ip]
             builder = build_bundle_from_service(
                 sessions=sessions,
                 iocs=iocs,
@@ -720,7 +720,6 @@ class APIServer:
     def _register_taxii_routes(self, r: Router) -> None:
         """Register the TAXII 2.1 endpoint tree under ``/taxii/2.1``."""
         from honeytrap.api.taxii import (
-            COLLECTION_IDS,
             TAXII_CONTENT_TYPE,
             TAXII_PREFIX,
             TaxiiState,
@@ -845,9 +844,7 @@ class APIServer:
             role=_ROLE_VIEWER,
             tags=["taxii"],
         )
-        def _taxii_object(
-            ctx: _RequestContext, collection_id: str, object_id: str
-        ) -> _Response:
+        def _taxii_object(ctx: _RequestContext, collection_id: str, object_id: str) -> _Response:
             """TAXII 2.1 single-object lookup."""
             name = find_collection_name(collection_id)
             if name is None:
@@ -859,9 +856,7 @@ class APIServer:
                 _record_metric("object", 404)
                 raise not_found(f"object {object_id!r} not found")
             _record_metric("object", 200)
-            return _taxii_response(
-                200, objects_envelope(filtered, next_token=None, more=False)
-            )
+            return _taxii_response(200, objects_envelope(filtered, next_token=None, more=False))
 
         @r.route(
             f"{TAXII_PREFIX}/honeytrap/collections/{{collection_id}}/manifest/",

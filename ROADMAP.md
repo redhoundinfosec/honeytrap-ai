@@ -204,4 +204,4 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] `fuzz` and `benchmark` pytest markers registered in `pyproject.toml`; default `pytest` runs fuzz, excludes benchmarks (`addopts = "-m 'not benchmark'"`)
 - [x] `hypothesis>=6.0` and `pytest-benchmark>=4.0` added as dev/test optional dependencies only — zero new runtime deps
 - [x] `tests/README.md` documenting layout (`unit/`, `fuzz/`, `bench/`), markers, and targeted invocation
-- [ ] Cycle 14B follow-ups (in progress: fuzz + bench done; mypy/coverage/pre-commit pending in Cycle 14B): mypy strict over `honeytrap/`, coverage targets and CI threshold, pre-commit hooks (ruff, mypy, pytest fast subset)
+- [x] Cycle 14B (2026-04-27): mypy strict over `src/honeytrap` with shrinking allow-list, branch-coverage gate `--cov-fail-under=90`, `.pre-commit-config.yaml` (ruff, ruff-format, mypy, codespell, file hygiene), CI workflow with lint/typecheck/test jobs (Python 3.11 and 3.12) plus a nightly fuzz workflow with the Hypothesis `ci` profile (500 examples per property)

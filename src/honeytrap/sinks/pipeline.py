@@ -98,7 +98,9 @@ class LogPipeline:
     ) -> None:
         """Create an empty pipeline; sinks are attached via :meth:`add_sink`."""
         self.capacity = max(1, int(capacity))
-        self.overflow = overflow if isinstance(overflow, OverflowPolicy) else OverflowPolicy(overflow)
+        self.overflow = (
+            overflow if isinstance(overflow, OverflowPolicy) else OverflowPolicy(overflow)
+        )
         self.retry_policy = retry_policy or RetryPolicy()
         self.metrics = metrics
         self._clock = clock
@@ -344,7 +346,9 @@ class LogPipeline:
     def _update_breaker_gauge(self, name: str, state: BreakerState) -> None:
         if self.metrics is None:
             return
-        value = {BreakerState.CLOSED: 0.0, BreakerState.HALF_OPEN: 1.0, BreakerState.OPEN: 2.0}[state]
+        value = {BreakerState.CLOSED: 0.0, BreakerState.HALF_OPEN: 1.0, BreakerState.OPEN: 2.0}[
+            state
+        ]
         self.metrics.set_gauge("honeytrap_sink_circuit_state", value, labels={"sink": name})
 
     def _observe_latency(self, name: str, seconds: float) -> None:

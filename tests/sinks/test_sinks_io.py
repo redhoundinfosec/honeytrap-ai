@@ -66,7 +66,14 @@ def test_event_to_ecs_drops_none_values() -> None:
 
 def test_render_bulk_payload_emits_action_and_doc() -> None:
     payload = render_bulk_payload(
-        [{"session_id": "a", "protocol": "ssh", "source_ip": "1.2.3.4", "timestamp": "2026-04-23T10:00:00.000Z"}],
+        [
+            {
+                "session_id": "a",
+                "protocol": "ssh",
+                "source_ip": "1.2.3.4",
+                "timestamp": "2026-04-23T10:00:00.000Z",
+            }
+        ],
         index="honeytrap-events-2026.04.23",
     )
     lines = payload.decode("utf-8").rstrip("\n").split("\n")
@@ -96,7 +103,9 @@ async def test_elasticsearch_sink_posts_bulk(monkeypatch: pytest.MonkeyPatch) ->
 
 
 @pytest.mark.asyncio
-async def test_elasticsearch_sink_honors_retry_after_on_429(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_elasticsearch_sink_honors_retry_after_on_429(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     slept: list[float] = []
 
     async def _fake_post(*_a: Any, **_kw: Any) -> HttpResponse:
@@ -106,7 +115,9 @@ async def test_elasticsearch_sink_honors_retry_after_on_429(monkeypatch: pytest.
         slept.append(value)
 
     monkeypatch.setattr("honeytrap.sinks.elasticsearch.post_json", _fake_post)
-    monkeypatch.setattr("honeytrap.sinks.elasticsearch.sleep_for_retry_after", lambda r, default: _fake_sleep(r))
+    monkeypatch.setattr(
+        "honeytrap.sinks.elasticsearch.sleep_for_retry_after", lambda r, default: _fake_sleep(r)
+    )
     cfg = ElasticsearchConfig(url="https://es.example", install_template=False)
     sink = ElasticsearchSink(cfg)
     with pytest.raises(HttpError):
@@ -138,9 +149,7 @@ def test_opensearch_sink_inherits_from_elasticsearch() -> None:
 
 def test_render_hec_payload_wraps_envelope() -> None:
     cfg = SplunkHecConfig(url="https://splunk", index="main", host="hp")
-    body = render_hec_payload(
-        [{"session_id": "a", "timestamp": "2026-04-23T10:00:00.000Z"}], cfg
-    )
+    body = render_hec_payload([{"session_id": "a", "timestamp": "2026-04-23T10:00:00.000Z"}], cfg)
     parsed = json.loads(body.decode("utf-8"))
     assert parsed["index"] == "main"
     assert parsed["host"] == "hp"
@@ -201,7 +210,9 @@ async def test_file_jsonl_writes_ndjson(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_file_jsonl_rotates_on_day_change(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_file_jsonl_rotates_on_day_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     sink = FileJsonlSink(FileJsonlConfig(path=str(tmp_path)))
 
     class _Clock:

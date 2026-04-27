@@ -22,13 +22,13 @@ def _parser() -> argparse.ArgumentParser:
 def _config_with_sink(tmp_path: Path) -> Config:
     cfg = Config()
     cfg.sinks.enabled = True
-    cfg.sinks.targets = [
-        {"type": "file_jsonl", "name": "fjsonl", "path": str(tmp_path)}
-    ]
+    cfg.sinks.targets = [{"type": "file_jsonl", "name": "fjsonl", "path": str(tmp_path)}]
     return cfg
 
 
-def test_sinks_test_round_trips_an_event(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_sinks_test_round_trips_an_event(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     cfg = _config_with_sink(tmp_path)
     args = _parser().parse_args(["sinks", "test", "fjsonl"])
     code = run_sinks_command(args, cfg)

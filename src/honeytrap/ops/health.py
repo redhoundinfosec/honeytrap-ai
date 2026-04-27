@@ -163,9 +163,7 @@ def format_prometheus(registry: MetricsRegistry) -> str:
                 )
                 for b in buckets:
                     lines.append(f'{name}_bucket{{le="{b}"}} {_fmt_value(histo[b])}')
-                lines.append(
-                    f'{name}_bucket{{le="+Inf"}} {_fmt_value(histo.get("+Inf", 0.0))}'
-                )
+                lines.append(f'{name}_bucket{{le="+Inf"}} {_fmt_value(histo.get("+Inf", 0.0))}')
                 lines.append(f"{name}_count {_fmt_value(histo['_count'])}")
                 lines.append(f"{name}_sum {_fmt_value(histo['_sum'])}")
                 continue

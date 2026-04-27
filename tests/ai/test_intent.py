@@ -83,9 +83,7 @@ def test_attck_bias_credential_harvest() -> None:
 
 def test_web_shell_artefact_detected() -> None:
     mem = _mem(
-        command_history=[
-            "POST /up.php HTTP/1.1\n\n<?php eval(base64_decode($_POST['x'])); ?>"
-        ]
+        command_history=["POST /up.php HTTP/1.1\n\n<?php eval(base64_decode($_POST['x'])); ?>"]
     )
     label, _, _ = classify(mem)
     assert label == IntentLabel.WEB_SHELL

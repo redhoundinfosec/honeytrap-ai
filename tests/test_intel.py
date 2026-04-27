@@ -227,9 +227,7 @@ def test_sql_injection_maps_t1190(mapper: ATTACKMapper) -> None:
         "path": "/search?q=' UNION SELECT password FROM users--",
     }
     result = mapper.map_event(event)
-    assert any(
-        m.technique_id == "T1190" and "sql-injection" in m.matched_on for m in result
-    )
+    assert any(m.technique_id == "T1190" and "sql-injection" in m.matched_on for m in result)
 
 
 def test_log4shell_maps_t1190_high_confidence(mapper: ATTACKMapper) -> None:
@@ -386,9 +384,7 @@ def test_extract_from_event_captures_host_header(extractor: IOCExtractor) -> Non
 
 def test_database_creates_new_tables(tmp_db: AttackDatabase) -> None:
     # The connection should already have attack_mappings + iocs tables.
-    cur = tmp_db._conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    )
+    cur = tmp_db._conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     names = {row[0] for row in cur.fetchall()}
     assert {"events", "attack_mappings", "iocs"}.issubset(names)
 
@@ -431,9 +427,7 @@ def test_attack_timeline_ordered_newest_first(tmp_db: AttackDatabase) -> None:
     for tid in ("T1190", "T1046", "T1595.002"):
         eid = tmp_db.record_event(event)
         assert eid is not None
-        tmp_db.record_attack_mapping(
-            eid, ATTACKMapping.from_technique(tid), remote_ip="1.2.3.4"
-        )
+        tmp_db.record_attack_mapping(eid, ATTACKMapping.from_technique(tid), remote_ip="1.2.3.4")
     timeline = tmp_db.get_attack_timeline()
     assert len(timeline) >= 3
     # Most recent insertion first: T1595.002 → but technique_id column stores parent.

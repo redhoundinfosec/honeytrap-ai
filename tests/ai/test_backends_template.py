@@ -33,16 +33,8 @@ def test_template_output_is_deterministic_by_session_id() -> None:
 
 def test_template_output_differs_across_sessions() -> None:
     backend = TemplateBackend()
-    a = _run(
-        backend.generate(
-            ResponseRequest(protocol="ssh", inbound="ls", session_id="AAA")
-        )
-    )
-    b = _run(
-        backend.generate(
-            ResponseRequest(protocol="ssh", inbound="ls", session_id="BBB")
-        )
-    )
+    a = _run(backend.generate(ResponseRequest(protocol="ssh", inbound="ls", session_id="AAA")))
+    b = _run(backend.generate(ResponseRequest(protocol="ssh", inbound="ls", session_id="BBB")))
     assert a.content != b.content
 
 
