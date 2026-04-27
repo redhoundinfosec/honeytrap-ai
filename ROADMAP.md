@@ -219,3 +219,34 @@ HoneyTrap AI is at an early beta. The four phases below mirror the original proj
 - [x] Textual `ClusterScreen` rendering nodes / top attackers / MITRE side-by-side
 - [x] Helm chart split (`values-controller.yaml` / `values-node.yaml`) with secret-backed API key wiring
 - [x] 142 new tests across `tests/cluster/` covering fleet, uplink (incl. lifecycle + outage recovery), HTTP endpoints (RBAC matrix, body limits, OpenAPI), CLI commands (with injected HTTP callable), end-to-end integration, and the cluster TUI snapshot fetcher
+
+## Phase 17 — Per-protocol adaptive adapters (Cycle 16, 2026-04-27)
+
+- [x] `honeytrap.ai.adapters` package: `BaseAdapter` ABC plus
+      `HttpAdapter`, `SmtpAdapter`, `TelnetAdapter`, `FtpAdapter`,
+      `SshAdapter` — zero new runtime dependencies, sharing the existing
+      backend chain, response cache, and intent classifier
+- [x] HTTP adapter emits status-line-correct responses for `/`, `/admin`
+      (401/403), `/login` (302+CSRF / form), sensitive paths (404), and
+      `/__error` (500), with per-profile `Server` headers (nginx,
+      Hipcam, BoaServer, Microsoft-IIS) and ETag synthesis
+- [x] SMTP adapter handles HELO/EHLO/MAIL/RCPT/DATA/STARTTLS/AUTH/
+      VRFY/EXPN/RSET/NOOP/QUIT with profile-aware capability blocks
+      and DSN-formatted blocked-recipient replies (`550 5.1.1`)
+- [x] Telnet adapter renders ubuntu-22.04 / busybox / cisco-ios
+      personas with cwd tracking, `cat /etc/passwd`/`shadow`/`hostname`
+      branches, `ps`/`netstat`/`ifconfig` and a deterministic latency cap
+- [x] FTP adapter speaks RFC 959: 220 banner, 331/230 login,
+      215/211 SYST/FEAT, 257 PWD/MKD, 150+226 transfer pairs, 213
+      SIZE/MDTM, profile-aware `LIST` with linux/windows/iot listings
+- [x] Shared safety filter strips attacker-secret echoes (passwords,
+      JWTs, PEM blocks, AWS/Google keys, CC-shaped digit runs),
+      internal host paths, and dashboard ANSI escapes; emits an
+      `ai_safety` event when output is trimmed
+- [x] Per-protocol config block `ai.adapters.{http,smtp,telnet,ftp,ssh}`
+      with `enabled` / `max_tokens` / `temperature` per adapter
+- [x] Wired into all four protocol handlers
+      (HTTP/SMTP/Telnet/FTP) gated by `ai.adaptive_enabled`, preserving
+      backward compatibility with template-only deployments
+- [x] 95 new tests across `tests/ai/adapters/` (HTTP 18, SMTP 15,
+      Telnet 29, FTP 24, integration 9) — all green; full suite 814 pass

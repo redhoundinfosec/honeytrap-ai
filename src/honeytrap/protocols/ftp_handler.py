@@ -161,6 +161,25 @@ class FTPHandler(ProtocolHandler):
                 cmd = cmd.upper().strip()
                 session.record_command(line)
 
+                adapter_reply = await self._adapter_reply(line, session, cwd, remote_ip)
+                if adapter_reply:
+                    writer.write(adapter_reply.encode("utf-8"))
+                    if cmd == "QUIT":
+                        try:
+                            await writer.drain()
+                        except ConnectionError:
+                            pass
+                        break
+                    if cmd == "CWD" and arg:
+                        cwd = arg if arg.startswith("/") else f"{cwd.rstrip('/')}/{arg}"
+                    if cmd == "CDUP":
+                        cwd = "/".join(cwd.rstrip("/").split("/")[:-1]) or "/"
+                    try:
+                        await writer.drain()
+                    except ConnectionError:
+                        break
+                    continue
+
                 if cmd == "USER":
                     username = arg.strip()
                     writer.write(b"331 Please specify the password.\r\n")
@@ -282,6 +301,44 @@ class FTPHandler(ProtocolHandler):
                     message="FTP session closed",
                 )
             )
+
+    async def _adapter_reply(
+        self,
+        line: str,
+        session,  # noqa: ANN001
+        cwd: str,
+        remote_ip: str,
+    ) -> str:
+        """Return the FTP adapter's reply for ``line`` or ``""``.
+
+        FTP commands that involve the data channel (LIST/NLST/RETR/STOR)
+        have their own bespoke logic in the static path; the adapter is
+        only consulted for control-channel verbs.
+        """
+        cfg = getattr(self.engine.config, "ai", None)
+        if cfg is None or not getattr(cfg, "adaptive_enabled", False):
+            return ""
+        adapters = getattr(self.engine, "ai_adapters", None) or {}
+        if "ftp" not in adapters:
+            return ""
+        verb = line.partition(" ")[0].upper()
+        if verb in {"LIST", "NLST", "RETR", "STOR", "APPE", "AUTH", "USER", "PASS"}:
+            return ""
+        try:
+            return await self.adapter_respond(
+                session_id=session.session_id,
+                source_ip=remote_ip,
+                inbound=line,
+                persona={
+                    "hostname": "ftp.example.com",
+                    "profile": getattr(self.engine.profile, "name", "linux_server"),
+                    "os_persona": "linux",
+                    "ftp_banner": self.banner.replace("220 ", ""),
+                },
+                extra={"cwd": cwd},
+            )
+        except Exception:  # noqa: BLE001
+            return ""
 
     # ------------------------------------------------------------------
     # Fake FS

@@ -5,6 +5,17 @@ Submodules are imported lazily to avoid a circular import with
 """
 
 from honeytrap.ai.adapter import AdapterResult, ProtocolResponder
+from honeytrap.ai.adapters import (
+    AdapterPrompt,
+    AdapterResponse,
+    BaseAdapter,
+    FtpAdapter,
+    HttpAdapter,
+    SmtpAdapter,
+    SshAdapter,
+    TelnetAdapter,
+    get_adapter,
+)
 from honeytrap.ai.backends import (
     AnthropicBackend,
     ChainBackend,
@@ -30,12 +41,17 @@ from honeytrap.ai.memory import (
 from honeytrap.ai.redact import redact_prompt
 
 __all__ = [
+    "AdapterPrompt",
+    "AdapterResponse",
     "AdapterResult",
     "AnthropicBackend",
     "AuthAttempt",
+    "BaseAdapter",
     "CacheStats",
     "ChainBackend",
+    "FtpAdapter",
     "HIGH_SEVERITY_LABELS",
+    "HttpAdapter",
     "InMemoryStore",
     "IntentLabel",
     "MemoryStore",
@@ -47,11 +63,15 @@ __all__ = [
     "ResponseRequest",
     "ResponseResult",
     "SessionMemory",
+    "SmtpAdapter",
     "SqliteMemoryStore",
+    "SshAdapter",
+    "TelnetAdapter",
     "TemplateBackend",
     "build_backend",
     "build_store",
     "classify",
+    "get_adapter",
     "get_backend",
     "redact_prompt",
 ]

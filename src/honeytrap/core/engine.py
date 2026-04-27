@@ -158,6 +158,33 @@ class Engine:
             redact_secrets=config.ai.redact_secrets_in_prompts,
         )
 
+        # Cycle 16: per-protocol adapter registry. Each adapter shares
+        # the same backend chain + cache as the legacy responder so a
+        # cache hit on one protocol benefits the rest of that session.
+        from honeytrap.ai.adapters import get_adapter as _get_adapter
+
+        self.ai_adapters: dict[str, Any] = {}
+        per_protocol = (
+            config.ai.adapters if isinstance(getattr(config.ai, "adapters", None), dict) else {}
+        )
+        for proto in ("http", "smtp", "telnet", "ftp", "ssh"):
+            proto_cfg = per_protocol.get(proto, {}) if isinstance(per_protocol, dict) else {}
+            enabled = (
+                bool(proto_cfg.get("enabled", config.ai.adaptive_enabled))
+                and config.ai.adaptive_enabled
+            )
+            try:
+                self.ai_adapters[proto] = _get_adapter(
+                    proto,
+                    chain=self.ai_backends,
+                    cache=ai_cache,
+                    enabled=enabled,
+                    redact_secrets=config.ai.redact_secrets_in_prompts,
+                    safety_event_callback=self._emit_ai_safety_event,
+                )
+            except KeyError:
+                continue
+
         # Security layer — each of these is engine-global so every handler
         # gets consistent limits without the caller having to wire it in.
         self.rate_limiter = RateLimiter(
@@ -577,6 +604,31 @@ class Engine:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
                 logger.debug("Dropping event for slow subscriber")
+
+    # ------------------------------------------------------------------
+    # Cycle 16 — AI-safety event hook
+    # ------------------------------------------------------------------
+    def _emit_ai_safety_event(self, protocol: str, reasons: list[str], sample: str) -> None:
+        """Schedule an ``ai_safety`` event when an adapter trims output.
+
+        The adapter callback fires on the asyncio thread but is not
+        itself async; schedule the event emit on the running loop so we
+        do not block the response path. Failures are intentionally
+        swallowed — the safety filter has already protected the wire,
+        the event is purely observational.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        evt = Event(
+            protocol=protocol,
+            event_type="ai_safety",
+            remote_ip="",
+            message=f"AI safety filter trimmed {protocol} response",
+            data={"reasons": reasons, "sample": sample[:128]},
+        )
+        loop.create_task(self.emit_event(evt))
 
     # ------------------------------------------------------------------
     # Helpers used by handlers

@@ -182,6 +182,36 @@ class SMTPHandler(ProtocolHandler):
                 # except for AUTH sub-keywords; we also dispatch on the full verb below.
                 full_verb = line.split(" ", 1)[0].upper()
 
+                # Cycle 16 — when the SMTP adapter is enabled, route the
+                # whole reply line through it. Falls through to the static
+                # path on any failure so unit tests continue to pass.
+                adapter_reply = await self._adapter_reply(
+                    line, session, full_verb, remote_ip, remote_port
+                )
+                if adapter_reply:
+                    writer.write(adapter_reply.encode("utf-8"))
+                    if full_verb == "QUIT":
+                        try:
+                            await writer.drain()
+                        except ConnectionError:
+                            pass
+                        break
+                    try:
+                        await writer.drain()
+                    except ConnectionError:
+                        break
+                    if full_verb in {"HELO", "EHLO"}:
+                        greeted = True
+                    if full_verb == "MAIL":
+                        mail_from = self._extract_address(arg, prefix="FROM:")
+                        rcpt_to = []
+                    if full_verb == "RCPT" and mail_from:
+                        rcpt_to.append(self._extract_address(arg, prefix="TO:"))
+                    if full_verb == "RSET":
+                        mail_from = ""
+                        rcpt_to = []
+                    continue
+
                 if full_verb in {"HELO", "EHLO"}:
                     greeted = True
                     client_hostname = arg or "unknown"
@@ -335,6 +365,56 @@ class SMTPHandler(ProtocolHandler):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    async def _adapter_reply(
+        self,
+        line: str,
+        session,  # noqa: ANN001
+        full_verb: str,
+        remote_ip: str,
+        remote_port: int,
+    ) -> str:
+        """Return the SMTP adapter's reply line(s) for ``line`` or ``""``.
+
+        Returns ``""`` when the adapter is unavailable, disabled, or its
+        output fails shape validation; the caller then continues with
+        the existing static-reply switch.
+        """
+        cfg = getattr(self.engine.config, "ai", None)
+        if cfg is None or not getattr(cfg, "adaptive_enabled", False):
+            return ""
+        adapters = getattr(self.engine, "ai_adapters", None) or {}
+        if "smtp" not in adapters:
+            return ""
+        # Subset of verbs we let the adapter drive. AUTH and DATA require
+        # multi-step state on the wire so they keep their bespoke code.
+        if full_verb not in {
+            "HELO",
+            "EHLO",
+            "MAIL",
+            "RCPT",
+            "RSET",
+            "NOOP",
+            "VRFY",
+            "EXPN",
+            "HELP",
+            "QUIT",
+        }:
+            return ""
+        try:
+            content = await self.adapter_respond(
+                session_id=session.session_id,
+                source_ip=remote_ip,
+                inbound=line,
+                persona={
+                    "hostname": self.hostname,
+                    "mail_helo": self.hostname,
+                    "profile": getattr(self.engine.profile, "name", "mail_server"),
+                },
+            )
+        except Exception:  # noqa: BLE001
+            return ""
+        return content
+
     def _write_ehlo(self, writer: asyncio.StreamWriter, client_hostname: str) -> None:
         """Write the multi-line EHLO response advertising capabilities."""
         lines = [f"250-{self.hostname} Hello {client_hostname}"]

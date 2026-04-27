@@ -16,6 +16,29 @@ ai:
   timeout_seconds: 8.0
   fallback_to_rules: true
   max_tokens: 400
+  # Cycle 16 — per-protocol adaptive adapter toggles.
+  # Each entry inherits ``adaptive_enabled`` unless explicitly overridden.
+  adapters:
+    http:
+      enabled: true
+      max_tokens: 512
+      temperature: 0.3
+    smtp:
+      enabled: true
+      max_tokens: 256
+      temperature: 0.2
+    telnet:
+      enabled: true
+      max_tokens: 256
+      temperature: 0.4
+    ftp:
+      enabled: true
+      max_tokens: 128
+      temperature: 0.2
+    ssh:
+      enabled: true
+      max_tokens: 512
+      temperature: 0.4
 
 geo:
   enabled: true

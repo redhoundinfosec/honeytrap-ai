@@ -604,6 +604,32 @@ Enable with `--ai-enabled` or `adaptive_enabled: true` in the
 `ai:` config block. See [docs/ai.md](docs/ai.md) for full
 details.
 
+### Per-protocol adapters (Cycle 16)
+
+Adaptive AI now extends to HTTP, SMTP, Telnet, and FTP through a
+single `BaseAdapter` contract. Each adapter implements four hooks
+(`template_response`, `validate_shape`, `cache_key`, `safety_filter`)
+and shares the existing backend chain, response cache, and intent
+classifier — no new runtime dependencies.
+
+```yaml
+ai:
+  enabled: true
+  adapters:
+    http:    {enabled: true, max_tokens: 512, temperature: 0.3}
+    smtp:    {enabled: true, max_tokens: 256, temperature: 0.2}
+    telnet:  {enabled: true, max_tokens: 256, temperature: 0.4}
+    ftp:     {enabled: true, max_tokens: 128, temperature: 0.2}
+    ssh:     {enabled: true, max_tokens: 512, temperature: 0.4}
+```
+
+A shared safety filter strips attacker-secret echoes (passwords,
+JWTs, PEM blocks, AWS/Google keys, CC-shaped digit runs), internal
+host paths, and dashboard ANSI escapes; it emits an `ai_safety`
+event on every trim. See
+[src/honeytrap/ai/adapters/README.md](src/honeytrap/ai/adapters/README.md)
+for the developer guide.
+
 ---
 
 ## 📡 Threat Intel Sharing (STIX 2.1 / TAXII 2.1)

@@ -169,6 +169,8 @@ class TelnetHandler(ProtocolHandler):
                 if line.strip() in {"exit", "logout", "quit"}:
                     break
                 out = self.engine.rules.shell_response(line)
+                if not out:
+                    out = await self._adapter_shell(line, session, remote_ip, personality)
                 if not out and self.engine.ai.available:
                     out = await self.engine.ai.generate(
                         system=f"You are a telnet shell on {personality.company}. Keep responses terse.",
@@ -198,6 +200,35 @@ class TelnetHandler(ProtocolHandler):
                     message="Telnet session closed",
                 )
             )
+
+    async def _adapter_shell(
+        self,
+        line: str,
+        session,  # noqa: ANN001
+        remote_ip: str,
+        personality,  # noqa: ANN001
+    ) -> str:
+        """Return the Telnet adapter's stdout for ``line`` or empty string."""
+        cfg = getattr(self.engine.config, "ai", None)
+        if cfg is None or not getattr(cfg, "adaptive_enabled", False):
+            return ""
+        adapters = getattr(self.engine, "ai_adapters", None) or {}
+        if "telnet" not in adapters:
+            return ""
+        try:
+            return await self.adapter_respond(
+                session_id=session.session_id,
+                source_ip=remote_ip,
+                inbound=line,
+                persona={
+                    "hostname": getattr(personality, "company", "host").lower().replace(" ", "-"),
+                    "os_persona": getattr(personality, "os_persona", "ubuntu-22.04"),
+                    "user": "root",
+                    "profile": getattr(self.engine.profile, "name", "linux_server"),
+                },
+            )
+        except Exception:  # noqa: BLE001
+            return ""
 
     async def _readline(self, reader: asyncio.StreamReader) -> str:
         """Read a CRLF line, stripping Telnet IAC negotiations."""

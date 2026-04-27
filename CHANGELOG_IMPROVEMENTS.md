@@ -1719,3 +1719,104 @@ runtime dependencies; everything is stdlib (`urllib`, `http.server`,
 * OPSEC: heartbeat / event payloads run through `_redact_snapshot` on
   the controller; node tokens cannot satisfy any non-cluster route;
   every response carries `Cluster-Generation`.
+
+## 2026-04-27 — Cycle 16: Adaptive AI extended to HTTP, SMTP, Telnet, FTP
+
+The adaptive AI response chain that previously lived only on the SSH
+happy-path is now factored into a per-protocol adapter package. Every
+new adapter shares the same backend chain, response cache, intent
+classifier, per-session memory, and safety filter -- there are zero new
+runtime dependencies.
+
+### What's new
+
+* `src/honeytrap/ai/adapters/` -- six modules: `base.py` (BaseAdapter
+  ABC, `AdapterPrompt`/`AdapterResponse` dataclasses, shared safety
+  filter and orchestration loop), `http.py`, `smtp.py`, `telnet.py`,
+  `ftp.py`, `ssh.py`. The factory `get_adapter(protocol)` returns a
+  fully-wired adapter for any of the six canonical names
+  (`http`, `https`, `smtp`, `telnet`, `ftp`, `ssh`).
+* HTTP adapter -- emits status-line-correct responses for `/`, `/admin`
+  (401 + `WWW-Authenticate` / 403), `/login` (302 with CSRF cookie /
+  GET form), sensitive paths (`/.env`, `/.git/config` -> 404),
+  `/__error` (500 with traceback), with per-profile `Server` headers
+  (nginx, `Hipcam Real Server/1.0`, `BoaServer`, `Microsoft-IIS/10.0`)
+  and deterministic ETag synthesis. `validate_shape` repairs
+  `Content-Length` to match the body before the response leaves the
+  pipeline.
+* SMTP adapter -- handles HELO/EHLO/MAIL/RCPT/DATA/STARTTLS/AUTH/
+  VRFY/EXPN/RSET/NOOP/QUIT. Mail-server profiles get the full
+  capability block (SIZE/STARTTLS/AUTH PLAIN LOGIN/PIPELINING/
+  8BITMIME/ENHANCEDSTATUSCODES); IoT profiles drop AUTH and
+  STARTTLS. Blocked recipients (`@spamhaus.org`, `@example.invalid`)
+  return DSN-formatted `550 5.1.1`.
+* Telnet adapter -- renders `ubuntu-22.04`, `busybox`, and
+  `cisco-ios` personas with cwd tracking, login banners, MOTDs, and
+  command outputs for `pwd`/`whoami`/`id`/`uname`/`ls`/`cat
+  /etc/passwd`/`/etc/shadow`/`/etc/hostname`/`ps`/`netstat`/
+  `ifconfig`/`history`/`env`/`sudo`. `latency_cap_ms` clamps any
+  configured persona latency into [5, 250] ms.
+* FTP adapter -- speaks RFC 959: 220 banner, 331/230 login,
+  215/211 SYST/FEAT, 257 PWD/MKD, 150+226 transfer pairs, 213
+  SIZE/MDTM, 227/229 PASV/EPSV, profile-aware `LIST` (linux unix
+  permissions, windows DIR layout, IoT firmware/config layout).
+  `validate_shape` accepts continuation lines for multi-line
+  responses (`211-` ... `211 End`).
+* SSH adapter -- thin wrapper that delegates to the Telnet renderer
+  for command output (the SSH wire framing remains handler-owned)
+  so dashboards and metrics can treat all five protocols uniformly.
+* Shared safety filter (in `BaseAdapter.safety_filter`) strips:
+  attacker-supplied secrets being echoed back (`password=`,
+  `passwd=`, `secret=`, `token=`, `api_key=` matches any value
+  >= 4 bytes in the response), JWTs, PEM private-key blocks,
+  AWS access keys, Google API keys, CC-shaped digit runs (13-19
+  digits), absolute host paths (`/home/<user>/workspace`,
+  `/Users/<user>/`, `C:\Users\...`), and dashboard-targeting
+  ANSI escape sequences. When the filter trims output, an
+  `ai_safety` event is scheduled on the asyncio loop.
+* New config block `ai.adapters.{http,smtp,telnet,ftp,ssh}` with
+  `enabled` / `max_tokens` / `temperature` per adapter, fully
+  documented in `honeytrap.example.yaml`.
+* Wired into all four protocol handlers (HTTP/SMTP/Telnet/FTP)
+  guarded by `ai.adaptive_enabled` to preserve backward
+  compatibility with template-only deployments.
+* Updated `docs/ai.md` with a "Per-protocol adapters (Cycle 16)"
+  section describing the four hooks, pipeline, config, and the
+  `ai_safety` event hook.
+
+### Test coverage
+
+95 new tests across `tests/ai/adapters/`:
+
+* `test_http_adapter.py` -- 18 tests on status-line correctness,
+  per-path branching, profile-aware Server headers, safety filter
+  for password / JWT echoes, `Content-Length` repair, ETag
+  determinism, cache-key stability.
+* `test_smtp_adapter.py` -- 15 tests on banner / HELO / EHLO with
+  capability blocks (mail-server vs IoT), MAIL / RCPT (with
+  blocked recipients), DATA, STARTTLS, RSET / NOOP, DATA-dot
+  state, validate_shape on multi-line blocks, attacker-token
+  scrubbing.
+* `test_telnet_adapter.py` -- 29 tests on login banners and MOTDs
+  per OS persona, all command outputs, cwd tracking through
+  `cd` / `cd ..` / `cd /etc` / `cd ~`, command-not-found, exit
+  semantics, latency cap, validate_shape, cache-key behaviour.
+* `test_ftp_adapter.py` -- 24 tests on banner / USER / PASS /
+  SYST per OS, FEAT, PWD/CWD/CDUP, TYPE, PASV/EPSV/PORT/EPRT,
+  LIST/NLST, RETR/STOR with size-by-extension, SIZE / MDTM,
+  DELE / MKD / RMD, RNFR/RNTO, NOOP, QUIT, HELP, validate_shape
+  multi-line acceptance, cache-key combination.
+* `test_adapters_integration.py` -- 9 tests covering registry
+  lookups, attacker probe sequences (HTTP path-walk, SMTP relay
+  probe, Telnet recon walk, FTP anonymous walk), cache
+  round-trip, SSH-Telnet delegation, and PEM-block redaction.
+
+### Quality bars met
+
+* All 95 new tests pass plus the 719 pre-existing tests; suite total
+  814 passing + 1 skipped (no regressions).
+* No new mypy overrides, no new ruff suppressions, no new runtime
+  dependencies, no emoji introduced.
+* Adapter wiring in HTTP / SMTP / Telnet / FTP handlers is gated
+  behind `ai.adaptive_enabled` so existing deployments remain on
+  the template-only path until they opt in.

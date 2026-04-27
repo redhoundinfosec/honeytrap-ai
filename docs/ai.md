@@ -102,3 +102,45 @@ exchange per protocol against the configured chain.
 - `honeytrap_ai_backend_used_total{backend=...}` (counter)
 - `honeytrap_ai_memory_sessions` (gauge)
 - `honeytrap_ai_memory_evictions_total` (counter)
+
+## Per-protocol adapters (Cycle 16)
+
+The per-protocol adapter package
+(`src/honeytrap/ai/adapters/`) extends adaptive AI from SSH-only to
+HTTP, SMTP, Telnet, and FTP. Each adapter implements four hooks:
+
+- `template_response(prompt)` — deterministic, zero-network fallback
+  that always succeeds and always produces a wire-correct response.
+- `validate_shape(response)` — protocol-shape validator that scrubs
+  output that would corrupt the wire dialogue (HTTP `Content-Length`,
+  SMTP `\d{3}[ -]<text>\r\n`, FTP multi-line continuation, etc.).
+- `cache_key(prompt)` — protocol-aware cache key (HTTP method+path,
+  SMTP verb+target, Telnet command+cwd, FTP verb+profile, ...).
+- `safety_filter(response, prompt)` — opsec scrub shared across all
+  adapters: strips attacker-supplied secrets, JWT/PEM/AWS keys,
+  internal hostnames/paths, and dashboard-targeting escape codes.
+
+The adapter pipeline is identical to the SSH path:
+
+```
+ResponseCache -> classify() -> ChainBackend -> validate_shape()
+              -> safety_filter() -> wire bytes
+```
+
+Per-protocol toggles live under `ai.adapters.<protocol>`:
+
+```yaml
+ai:
+  enabled: true
+  adapters:
+    http:    {enabled: true, max_tokens: 512, temperature: 0.3}
+    smtp:    {enabled: true, max_tokens: 256, temperature: 0.2}
+    telnet:  {enabled: true, max_tokens: 256, temperature: 0.4}
+    ftp:     {enabled: true, max_tokens: 128, temperature: 0.2}
+    ssh:     {enabled: true, max_tokens: 512, temperature: 0.4}
+```
+
+When a safety filter trims output, an `ai_safety` event is emitted
+with `protocol`, `reasons[]`, and a 128-byte sample of the original
+content. Operators can wire this into the alerts subsystem for
+real-time leak monitoring.

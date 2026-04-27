@@ -67,6 +67,12 @@ class AIConfig:
     redact_secrets_in_prompts: bool = True
     dry_run: bool = False
     force_backend: str | None = None
+    # Cycle 16: per-protocol adapter toggles (http/smtp/telnet/ftp/ssh).
+    # Each value is a small dict with ``enabled`` plus optional
+    # ``max_tokens`` / ``temperature`` overrides. Missing entries inherit
+    # ``adaptive_enabled`` so the default is "off until you turn the
+    # whole AI layer on, then on for every protocol".
+    adapters: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

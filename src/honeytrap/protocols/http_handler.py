@@ -220,7 +220,15 @@ class HTTPHandler(ProtocolHandler):
     # Rendering
     # ------------------------------------------------------------------
     async def _render_response(self, match, path, personality, request) -> web.StreamResponse:
-        """Turn a RuleMatch into an aiohttp Response."""
+        """Turn a RuleMatch into an aiohttp Response.
+
+        Cycle 16: when the per-protocol HTTP adapter is enabled, the
+        adapter wins for default 200 / 404 / 401 / 302 / 500 paths so the
+        response carries the consistent headers and CSRF cookies the
+        adapter ships. Static rule matches (path-traversal honey, admin
+        panels with bespoke HTML templates) keep their existing path so
+        their fixed-content snapshots do not regress.
+        """
         headers = {"Server": self.server_header}
 
         if match.category == "path_traversal" or match.category == "sensitive_file":
@@ -240,10 +248,84 @@ class HTTPHandler(ProtocolHandler):
             headers["Content-Type"] = "text/html"
             return web.Response(text=match.response, status=404, headers=headers)
 
+        adaptive = await self._maybe_adaptive_response(request, personality)
+        if adaptive is not None:
+            return adaptive
+
         # Default index page.
         body = self._render_template("index.html", path=request.path, personality=personality)
         headers["Content-Type"] = "text/html"
         return web.Response(text=body, status=200, headers=headers)
+
+    async def _maybe_adaptive_response(
+        self, request: web.Request, personality
+    ) -> web.StreamResponse | None:
+        """Run the HTTP adapter and return an aiohttp response or ``None``.
+
+        Returns ``None`` when no adapter is registered (engine without
+        AI), when the adapter is disabled, or when the adapter output
+        cannot be parsed back into a wire-valid HTTP response.
+        """
+        adapters = getattr(self.engine, "ai_adapters", None) or {}
+        adapter = adapters.get("http")
+        if adapter is None:
+            return None
+        body_text = ""
+        if request.method in {"POST", "PUT", "PATCH"}:
+            try:
+                body_text = (await request.text())[:8192]
+            except Exception:  # noqa: BLE001
+                body_text = ""
+        persona = {
+            "company": personality.company,
+            "server_header": self.server_header,
+            "profile": getattr(self.engine.profile, "name", "web_server"),
+            "session_id": request.headers.get("X-Request-Id", request.path),
+        }
+        extra = {
+            "method": request.method,
+            "path": request.path_qs or "/",
+            "headers": {k: v for k, v in request.headers.items()},
+            "body": body_text,
+        }
+        try:
+            content = await self.adapter_respond(
+                session_id=request.headers.get("X-Request-Id", request.path),
+                source_ip=self._client_ip(request),
+                inbound=request.path_qs or "/",
+                persona=persona,
+                extra=extra,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("HTTP adapter failed: %s", exc)
+            return None
+        if not content:
+            return None
+        return self._raw_http_to_response(content)
+
+    @staticmethod
+    def _raw_http_to_response(raw: str) -> web.StreamResponse | None:
+        """Parse a raw ``HTTP/1.1`` response into a ``web.Response``."""
+        head, sep, body = raw.partition("\r\n\r\n")
+        if not sep:
+            return None
+        lines = head.split("\r\n")
+        try:
+            parts = lines[0].split(" ", 2)
+            status = int(parts[1])
+        except (IndexError, ValueError):
+            return None
+        headers: dict[str, str] = {}
+        for line in lines[1:]:
+            name, _, value = line.partition(":")
+            if not _:
+                continue
+            headers[name.strip()] = value.strip()
+        # aiohttp manages Content-Length automatically — drop it to avoid
+        # a duplicate header when the client reads the response.
+        headers.pop("Content-Length", None)
+        headers.pop("content-length", None)
+        return web.Response(body=body.encode("utf-8"), status=status, headers=headers)
 
     def _admin_template(self, admin_path: str) -> str:
         if "wp-" in admin_path:

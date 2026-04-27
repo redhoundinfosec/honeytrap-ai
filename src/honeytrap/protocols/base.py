@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from honeytrap.core.profile import ServiceSpec
 from honeytrap.core.rate_limiter import RateLimitDecision
@@ -188,6 +188,52 @@ class ProtocolHandler(ABC):
         )
         memory_store.update(memory)
         return result.response
+
+    async def adapter_respond(
+        self,
+        *,
+        session_id: str,
+        source_ip: str,
+        inbound: str,
+        persona: dict[str, Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> str:
+        """Drive the per-protocol :class:`BaseAdapter` to render a reply.
+
+        Cycle 16 path. Always falls back to the deterministic template
+        adapter so the wire dialogue stays correct even when no LLM
+        backend is configured. Returns ``""`` when the engine has no
+        adapter registered for ``self.name``; the caller should then
+        fall through to its existing static path.
+        """
+        from honeytrap.ai.adapters import AdapterPrompt as _AdapterPrompt
+
+        adapters = getattr(self.engine, "ai_adapters", None) or {}
+        adapter = adapters.get(self.name)
+        if adapter is None:
+            return ""
+        memory_store = getattr(self.engine, "ai_memory", None)
+        memory = (
+            memory_store.get_or_create(session_id, source_ip) if memory_store is not None else None
+        )
+        prompt_persona: dict[str, Any] = dict(persona or {})
+        prompt_persona.setdefault("session_id", session_id)
+        prompt_persona.setdefault("source_ip", source_ip)
+        prompt_extra: dict[str, Any] = dict(extra or {})
+        if memory is not None:
+            prompt_extra["memory"] = memory
+        prompt = _AdapterPrompt(
+            inbound=inbound,
+            persona=prompt_persona,
+            extra=prompt_extra,
+        )
+        result = await adapter.respond(session_id, prompt)
+        if memory_store is not None and memory is not None:
+            memory_store.update(memory)
+        # Surface useful side effects.
+        if extra is not None and "new_cwd" in prompt_extra:
+            extra["new_cwd"] = prompt_extra["new_cwd"]
+        return result.content
 
     def idle_timeout(self) -> float:
         """Return the idle-timeout (seconds) configured for this protocol."""
