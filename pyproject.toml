@@ -122,7 +122,6 @@ ignore = [
     "SIM105", # contextlib.suppress over try/except/pass — readability preference
     "SIM110", "SIM117",
     "UP037",  # quoted forward refs are fine
-    "UP038",  # isinstance tuple syntax stays for now
     "C416",   # dict comprehensions intentional
 ]
 

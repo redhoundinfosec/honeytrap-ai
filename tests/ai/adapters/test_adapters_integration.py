@@ -148,9 +148,7 @@ def test_ssh_adapter_cache_key_combines_cmd_persona_cwd() -> None:
     p1 = AdapterPrompt(
         inbound="ls -la", persona={"os_persona": "ubuntu-22.04"}, extra={"cwd": "/root"}
     )
-    p2 = AdapterPrompt(
-        inbound="ls -la", persona={"os_persona": "busybox"}, extra={"cwd": "/root"}
-    )
+    p2 = AdapterPrompt(inbound="ls -la", persona={"os_persona": "busybox"}, extra={"cwd": "/root"})
     assert a.cache_key(p1) != a.cache_key(p2)
 
 
