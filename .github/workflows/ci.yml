@@ -32,7 +32,7 @@ jobs:
       - name: Ruff format check
         run: ruff format --check src tests
       - name: Codespell
-        run: codespell --skip=CHANGELOG_IMPROVEMENTS.md,reports/,*.lock,*.svg,*.json --ignore-words-list=ot,nd,nin,fpr,blocs,wont src/ tests/
+        run: codespell --skip=CHANGELOG_IMPROVEMENTS.md,reports/,*.lock,*.svg,*.json --ignore-words-list=ot,nd,nin,fpr,blocs,wont,noone src/ tests/
 
   typecheck:
     runs-on: ubuntu-latest

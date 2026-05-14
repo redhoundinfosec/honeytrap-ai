@@ -39,4 +39,4 @@ repos:
       - id: codespell
         args:
           - --skip=CHANGELOG_IMPROVEMENTS.md,reports/,*.lock,*.svg,*.json
-          - --ignore-words-list=ot,nd,nin,fpr,blocs,wont
+          - --ignore-words-list=ot,nd,nin,fpr,blocs,wont,noone
