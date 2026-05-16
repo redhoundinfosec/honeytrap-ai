@@ -14,24 +14,48 @@ repos:
       - id: check-added-large-files
         args: ["--maxkb=512"]
       - id: detect-private-key
+        # Test fixtures for the redaction logic contain literal "BEGIN RSA
+        # PRIVATE KEY" headers with non-key dummy payloads. They are required
+        # for the tests to exercise the redactor and contain no real secrets.
+        exclude: ^tests/ai/(test_redact\.py|adapters/test_adapters_integration\.py)$
       - id: mixed-line-ending
       - id: check-merge-conflict
       - id: debug-statements
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+  # Use the developer's installed ruff (from `pip install -e .[dev]`) instead
+  # of the mirrored hook so that pre-commit, CI, and editor integrations all
+  # agree on the rule set. The mirror pin drifts from pyproject.toml's
+  # `ruff>=0.1` constraint and surfaces rules (e.g. UP038) that have since
+  # been removed upstream, producing failures CI does not see.
+  - repo: local
     hooks:
       - id: ruff
-        args: ["--fix"]
+        name: ruff (local)
+        entry: ruff check --fix
+        language: system
+        types: [python]
+        require_serial: true
       - id: ruff-format
+        name: ruff-format (local)
+        entry: ruff format
+        language: system
+        types: [python]
+        require_serial: true
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.2
+  # Use the developer's installed mypy (from `pip install -e .[dev]`) instead
+  # of the mirrored hook. The mirror runs in an isolated venv that does not
+  # see runtime deps like aiohttp/textual, which makes strict mode flag every
+  # framework decorator as "Untyped" — errors that do not occur in CI. Calling
+  # the locally installed mypy reproduces the CI command exactly.
+  - repo: local
     hooks:
       - id: mypy
+        name: mypy (local)
+        entry: mypy src/honeytrap
+        language: system
+        types: [python]
         files: ^src/honeytrap/
-        additional_dependencies:
-          - types-PyYAML
+        pass_filenames: false
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.3.0
